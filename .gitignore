@@ -1,0 +1,7 @@
+# Build results
+bin
+obj
+
+# Compiled Binaries
+content/bin/
+
