@@ -95,12 +95,12 @@ namespace Datadog.Serverless.Compat
             if (IsWindows())
             {
                 _logger.LogDebug("Detected {OS}", OS);
-                return "content/bin/windows-amd64/datadog-serverless-compat.exe";
+                return "datadog/bin/windows-amd64/datadog-serverless-compat.exe";
             }
             else
             {
                 _logger.LogDebug("Detected {OS}", OS);
-                return "content/bin/linux-amd64/datadog-serverless-compat";
+                return "datadog/bin/linux-amd64/datadog-serverless-compat";
             }
         }
 
