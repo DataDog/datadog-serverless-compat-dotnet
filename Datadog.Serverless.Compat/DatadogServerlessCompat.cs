@@ -27,25 +27,17 @@ namespace Datadog.Serverless.Compat
         {
             var logLevelEnv = Environment.GetEnvironmentVariable("DD_LOG_LEVEL");
 
-            var logLevelMapping = new Dictionary<string, LogLevel>(StringComparer.OrdinalIgnoreCase)
+            var logLevel = logLevelEnv?.ToUpper() switch
             {
-                { "OFF", LogLevel.None },
-                { "CRITICAL", LogLevel.Critical },
-                { "ERROR", LogLevel.Error },
-                { "WARN", LogLevel.Warning },
-                { "INFO", LogLevel.Information },
-                { "DEBUG", LogLevel.Debug },
-                { "TRACE", LogLevel.Trace }
+                "OFF" => LogLevel.None,
+                "CRITICAL" => LogLevel.Critical,
+                "ERROR" => LogLevel.Error,
+                "WARN" => LogLevel.Warning,
+                "INFO" => LogLevel.Information,
+                "DEBUG" => LogLevel.Debug,
+                "TRACE" => LogLevel.Trace,
+                _ => LogLevel.Information
             };
-
-            LogLevel logLevel = LogLevel.Information;
-            if (
-                !string.IsNullOrEmpty(logLevelEnv)
-                && logLevelMapping.TryGetValue(logLevelEnv, out var mappedLevel)
-            )
-            {
-                logLevel = mappedLevel;
-            }
 
             var loggerFactory = LoggerFactory.Create(builder =>
             {
