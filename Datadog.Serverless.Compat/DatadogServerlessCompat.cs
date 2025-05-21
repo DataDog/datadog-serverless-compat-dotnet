@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Datadog.Serverless.Compat
 {
-    public enum CloudEnvironment
+    internal enum CloudEnvironment
     {
         AzureFunction,
         AzureSpringApp,
