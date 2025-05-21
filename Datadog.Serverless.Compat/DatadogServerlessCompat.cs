@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/). Copyright 2025 Datadog, Inc.
 // </copyright>
 
-﻿using System;
+using System;
 using System.Diagnostics;
 using System.IO;
 using System.Reflection;
@@ -23,9 +23,6 @@ namespace Datadog.Serverless.Compat
     public static class DatadogServerlessCompat
     {
         private static readonly string OS = RuntimeInformation.OSDescription.ToLower();
-        private static readonly string? BinaryPath = Environment.GetEnvironmentVariable(
-            "DD_SERVERLESS_COMPAT_PATH"
-        );
         private static readonly ILogger _logger;
 
         static DatadogServerlessCompat()
@@ -83,6 +80,8 @@ namespace Datadog.Serverless.Compat
 
         private static string GetBinaryPath()
         {
+            var BinaryPath = Environment.GetEnvironmentVariable("DD_SERVERLESS_COMPAT_PATH");
+
             if (!string.IsNullOrEmpty(BinaryPath))
             {
                 _logger.LogDebug("Detected user configured binary path {BinaryPath}", BinaryPath);
