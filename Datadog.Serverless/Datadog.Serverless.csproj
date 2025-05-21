@@ -29,7 +29,7 @@
 
   <ItemGroup>
     <None Include="$(MSBuildThisFileDirectory)..\README.md" Pack="true" PackagePath="\" />
-    <!-- <None Include="$(MSBuildThisFileDirectory)..\packageIcon.png" Pack="true" Visible="false" PackagePath="packageIcon.png" /> -->
+    <None Include="$(MSBuildThisFileDirectory)\..\..\datadog-logo-256x256.png" Pack="true" Visible="false" PackagePath="packageIcon.png" />
     
     <Content Include="datadog/bin/**">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
