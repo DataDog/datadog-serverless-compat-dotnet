@@ -161,8 +161,6 @@ namespace Datadog.Serverless
                 {
                     FileName = binaryPath,
                     UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
                     CreateNoWindow = true
                 };
 
