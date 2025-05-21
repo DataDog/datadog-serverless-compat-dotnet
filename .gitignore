@@ -5,3 +5,7 @@ obj
 # Compiled Binaries
 content/bin/
 
+# IDEs
+.idea/
+.vs/
+.vscode/
