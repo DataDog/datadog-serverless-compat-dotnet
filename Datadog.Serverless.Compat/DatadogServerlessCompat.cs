@@ -101,7 +101,7 @@ namespace Datadog.Serverless.Compat
             }
         }
 
-        private static string SetPackageVersion()
+        private static string GetPackageVersion()
         {
             try
             {
@@ -153,7 +153,7 @@ namespace Datadog.Serverless.Compat
                 return;
             }
 
-            var packageVersion = SetPackageVersion();
+            var packageVersion = GetPackageVersion();
             _logger.LogDebug("Found package version {packageVersion}", packageVersion);
 
             try
