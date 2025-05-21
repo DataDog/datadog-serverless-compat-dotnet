@@ -1,4 +1,4 @@
-// <copyright file="DatadogServerlessCompat.cs" company="Datadog">
+// <copyright file="Compat.cs" company="Datadog">
 // Unless explicitly stated otherwise all files in this repository are licensed under the Apache 2 License.
 // This product includes software developed at Datadog (https://www.datadoghq.com/). Copyright 2025 Datadog, Inc.
 // </copyright>
@@ -10,7 +10,7 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using Microsoft.Extensions.Logging;
 
-namespace Datadog.Serverless.Compat
+namespace Datadog.Serverless
 {
     internal enum CloudEnvironment
     {
@@ -20,12 +20,12 @@ namespace Datadog.Serverless.Compat
         Unknown
     }
 
-    public static class DatadogServerlessCompat
+    public static class Compat
     {
         private static readonly string OS = RuntimeInformation.OSDescription.ToLower();
         private static readonly ILogger _logger;
 
-        static DatadogServerlessCompat()
+        static Compat()
         {
             var logLevelEnv = Environment.GetEnvironmentVariable("DD_LOG_LEVEL");
 
@@ -45,7 +45,7 @@ namespace Datadog.Serverless.Compat
             {
                 builder.AddConsole().SetMinimumLevel(logLevel);
             });
-            _logger = loggerFactory.CreateLogger("Datadog.Serverless.Compat");
+            _logger = loggerFactory.CreateLogger("Datadog.Serverless");
         }
 
         private static bool IsWindows()

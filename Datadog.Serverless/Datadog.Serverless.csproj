@@ -7,7 +7,7 @@
     <Version>0.1.0</Version>
 
     <!-- NuGet package -->
-    <PackageId>Datadog.Serverless.Compat</PackageId>
+    <PackageId>Datadog.Serverless</PackageId>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <!-- <PackageIcon>packageIcon.png</PackageIcon> -->
     <PackageProjectUrl>https://docs.datadoghq.com/serverless/</PackageProjectUrl>
