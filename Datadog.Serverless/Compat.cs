@@ -80,12 +80,12 @@ namespace Datadog.Serverless
 
         private static string GetBinaryPath()
         {
-            var BinaryPath = Environment.GetEnvironmentVariable("DD_SERVERLESS_COMPAT_PATH");
+            var binaryPath = Environment.GetEnvironmentVariable("DD_SERVERLESS_COMPAT_PATH");
 
-            if (!string.IsNullOrEmpty(BinaryPath))
+            if (!string.IsNullOrEmpty(binaryPath))
             {
-                _logger.LogDebug("Detected user configured binary path {BinaryPath}", BinaryPath);
-                return BinaryPath;
+                _logger.LogDebug("Detected user configured binary path {binaryPath}", binaryPath);
+                return binaryPath;
             }
 
             if (IsWindows())
