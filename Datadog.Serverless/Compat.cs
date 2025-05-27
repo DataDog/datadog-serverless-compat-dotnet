@@ -22,7 +22,7 @@ namespace Datadog.Serverless
     {
         private static readonly string OS = RuntimeInformation.OSDescription.ToLower();
         private static readonly ILogger _logger;
-        private static string homeDir = "";
+        private static string homeDir = Path.DirectorySeparatorChar.ToString();
 
         static Compat()
         {
@@ -66,7 +66,12 @@ namespace Datadog.Serverless
                 && env.Contains("FUNCTIONS_WORKER_RUNTIME")
             )
             {
-                homeDir = "/home/site/wwwroot/datadog";
+                homeDir = Path.Combine(
+                    Path.DirectorySeparatorChar.ToString(),
+                    "home",
+                    "site",
+                    "wwwroot"
+                );
                 return CloudEnvironment.AzureFunction;
             }
 
@@ -86,12 +91,24 @@ namespace Datadog.Serverless
             if (IsWindows())
             {
                 _logger.LogDebug("Detected {OS}", OS);
-                return Path.Combine(homeDir, "bin/windows-amd64/datadog-serverless-compat.exe");
+                return Path.Combine(
+                    homeDir,
+                    "datadog",
+                    "bin",
+                    "windows-amd64",
+                    "datadog-serverless-compat.exe"
+                );
             }
             else
             {
                 _logger.LogDebug("Detected {OS}", OS);
-                return Path.Combine(homeDir, "bin/linux-amd64/datadog-serverless-compat");
+                return Path.Combine(
+                    homeDir,
+                    "datadog",
+                    "bin",
+                    "linux-amd64",
+                    "datadog-serverless-compat"
+                );
             }
         }
 
