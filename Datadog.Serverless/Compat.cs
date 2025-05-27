@@ -15,8 +15,6 @@ namespace Datadog.Serverless
     internal enum CloudEnvironment
     {
         AzureFunction,
-        AzureSpringApp,
-        GoogleCloudRunFunction1stGen,
         Unknown
     }
 
@@ -24,6 +22,7 @@ namespace Datadog.Serverless
     {
         private static readonly string OS = RuntimeInformation.OSDescription.ToLower();
         private static readonly ILogger _logger;
+        private static string homeDir = "";
 
         static Compat()
         {
@@ -67,12 +66,8 @@ namespace Datadog.Serverless
                 && env.Contains("FUNCTIONS_WORKER_RUNTIME")
             )
             {
+                homeDir = "/home/site/wwwroot/datadog";
                 return CloudEnvironment.AzureFunction;
-            }
-
-            if (env.Contains("FUNCTION_NAME") && env.Contains("GCP_PROJECT"))
-            {
-                return CloudEnvironment.GoogleCloudRunFunction1stGen;
             }
 
             return CloudEnvironment.Unknown;
@@ -91,12 +86,12 @@ namespace Datadog.Serverless
             if (IsWindows())
             {
                 _logger.LogDebug("Detected {OS}", OS);
-                return "datadog/bin/windows-amd64/datadog-serverless-compat.exe";
+                return Path.Combine(homeDir, "bin/windows-amd64/datadog-serverless-compat.exe");
             }
             else
             {
                 _logger.LogDebug("Detected {OS}", OS);
-                return "datadog/bin/linux-amd64/datadog-serverless-compat";
+                return Path.Combine(homeDir, "bin/linux-amd64/datadog-serverless-compat");
             }
         }
 
