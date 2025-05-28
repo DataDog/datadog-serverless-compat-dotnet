@@ -9,7 +9,7 @@
     <!-- NuGet package -->
     <PackageId>Datadog.Serverless</PackageId>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <!-- <PackageIcon>packageIcon.png</PackageIcon> -->
+    <PackageIcon>packageIcon.png</PackageIcon>
     <PackageProjectUrl>https://docs.datadoghq.com/serverless/</PackageProjectUrl>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
