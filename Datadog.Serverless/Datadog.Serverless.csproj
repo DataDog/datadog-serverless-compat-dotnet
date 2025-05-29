@@ -39,8 +39,6 @@
       Visible="false" PackagePath="packageIcon.png" />
 
     <Content Include="datadog/bin/**" Pack="true" PackagePath="content/datadog/bin;contentFiles/any/any/datadog/bin">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
       <PackageCopyToOutput>true</PackageCopyToOutput>
     </Content>
   </ItemGroup>
