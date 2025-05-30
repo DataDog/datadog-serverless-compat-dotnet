@@ -132,7 +132,7 @@ namespace Datadog.Serverless
         public static void Start()
         {
             var environment = GetEnvironment();
-            _logger.LogInformation("Environment detected: {Environment}", environment);
+            _logger.LogDebug("Environment detected: {Environment}", environment);
 
             if (environment == CloudEnvironment.Unknown)
             {
