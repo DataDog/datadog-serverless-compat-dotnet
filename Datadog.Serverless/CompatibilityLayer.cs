@@ -18,13 +18,13 @@ namespace Datadog.Serverless
         Unknown
     }
 
-    public static class Compat
+    public static class CompatibilityLayer
     {
         private static readonly string OS = RuntimeInformation.OSDescription.ToLower();
         private static readonly ILogger _logger;
         private static string homeDir = Path.DirectorySeparatorChar.ToString();
 
-        static Compat()
+        static CompatibilityLayer()
         {
             var logLevelEnv = Environment.GetEnvironmentVariable("DD_LOG_LEVEL");
 
