@@ -3,7 +3,7 @@ bin
 obj
 
 # Compiled Binaries
-content/bin/
+datadog/bin/
 
 # IDEs
 .idea/
