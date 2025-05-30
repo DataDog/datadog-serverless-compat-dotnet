@@ -1,0 +1,47 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>netstandard2.0;net461</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <Version>0.1.0</Version>
+    <LangVersion>latest</LangVersion>
+
+    <!-- NuGet package -->
+    <PackageId>Datadog.Serverless.Compat</PackageId>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>packageIcon.png</PackageIcon>
+    <PackageProjectUrl>https://docs.datadoghq.com/serverless/</PackageProjectUrl>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <PackageTags>Datadog;APM;tracing;instrumentation;serverless</PackageTags>
+    <PackageDescription>Datadog Serverless Compat library for .NET.</PackageDescription>
+    <Copyright>Copyright 2025 Datadog, Inc.</Copyright>
+    <Company>Datadog</Company>
+    <Authors>Datadog</Authors>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+  </PropertyGroup>
+
+  <!-- Use deterministic build in CI -->
+  <PropertyGroup Condition="'$(GITLAB_CI)' == 'true' Or '$(GITHUB_ACTION)' == 'true'">
+    <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="6.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="6.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="$(MSBuildThisFileDirectory)..\README.md" Pack="true" PackagePath="\" />
+    <None Include="$(MSBuildThisFileDirectory)..\datadog-logo-256x256.png" Pack="true"
+      Visible="false" PackagePath="packageIcon.png" />
+
+    <Content Include="datadog/bin/**" Pack="true"
+      PackagePath="content/datadog/bin;contentFiles/any/any/datadog/bin">
+      <PackageCopyToOutput>true</PackageCopyToOutput>
+    </Content>
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,11 @@
+# Build results
+bin
+obj
+
+# Compiled Binaries
+datadog/bin/
+
+# IDEs
+.idea/
+.vs/
+.vscode/
