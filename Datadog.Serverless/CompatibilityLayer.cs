@@ -55,12 +55,8 @@ public static class CompatibilityLayer
 
     private static CloudEnvironment GetEnvironment()
     {
-        var env = Environment.GetEnvironmentVariables();
-
-        if (
-            env.Contains("FUNCTIONS_EXTENSION_VERSION")
-            && env.Contains("FUNCTIONS_WORKER_RUNTIME")
-        )
+        if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("FUNCTIONS_EXTENSION_VERSION")) &&
+            !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("FUNCTIONS_WORKER_RUNTIME")))
         {
             _homeDir = Path.Combine(
                 Path.DirectorySeparatorChar.ToString(),
