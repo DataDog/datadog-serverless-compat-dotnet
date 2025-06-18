@@ -21,8 +21,9 @@ public static class CompatibilityLayer
     }
 
     private static readonly string OS = RuntimeInformation.OSDescription.ToLower();
-    private static readonly ILogger _logger;
-    private static string homeDir = Path.DirectorySeparatorChar.ToString();
+    private static readonly ILogger Logger;
+
+    private static string _homeDir = Path.DirectorySeparatorChar.ToString();
 
     [DllImport("libc", SetLastError = true)]
     private static extern int chmod(string filePath, uint mode);
@@ -47,7 +48,7 @@ public static class CompatibilityLayer
         {
             builder.AddConsole().SetMinimumLevel(logLevel);
         });
-        _logger = loggerFactory.CreateLogger("Datadog.Serverless");
+        Logger = loggerFactory.CreateLogger("Datadog.Serverless");
     }
 
     private static bool IsWindows()
@@ -69,7 +70,7 @@ public static class CompatibilityLayer
             && env.Contains("FUNCTIONS_WORKER_RUNTIME")
         )
         {
-            homeDir = Path.Combine(
+            _homeDir = Path.Combine(
                 Path.DirectorySeparatorChar.ToString(),
                 "home",
                 "site",
@@ -87,15 +88,15 @@ public static class CompatibilityLayer
 
         if (!string.IsNullOrEmpty(binaryPath))
         {
-            _logger.LogDebug("Detected user configured binary path {binaryPath}", binaryPath);
+            Logger.LogDebug("Detected user configured binary path {binaryPath}", binaryPath);
             return binaryPath;
         }
 
         if (IsWindows())
         {
-            _logger.LogDebug("Detected {OS}", OS);
+            Logger.LogDebug("Detected {OS}", OS);
             return Path.Combine(
-                homeDir,
+                _homeDir,
                 "datadog",
                 "bin",
                 "windows-amd64",
@@ -104,9 +105,9 @@ public static class CompatibilityLayer
         }
         else
         {
-            _logger.LogDebug("Detected {OS}", OS);
+            Logger.LogDebug("Detected {OS}", OS);
             return Path.Combine(
-                homeDir,
+                _homeDir,
                 "datadog",
                 "bin",
                 "linux-amd64",
@@ -115,31 +116,31 @@ public static class CompatibilityLayer
         }
     }
 
-        private static string GetPackageVersion()
+    private static string GetPackageVersion()
+    {
+        try
         {
-            try
-            {
-                var assembly = Assembly.GetExecutingAssembly();
-                var version = assembly
-                    .GetCustomAttribute<AssemblyInformationalVersionAttribute>()
-                    ?.InformationalVersion;
-                return version ?? "unknown";
-            }
-            catch (Exception e)
-            {
-                _logger.LogError(e, "Unable to identify package version");
-                return "unknown";
-            }
+            var assembly = Assembly.GetExecutingAssembly();
+            var version = assembly
+                          .GetCustomAttribute<AssemblyInformationalVersionAttribute>()
+                          ?.InformationalVersion;
+            return version ?? "unknown";
         }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Unable to identify package version");
+            return "unknown";
+        }
+    }
 
     public static void Start()
     {
         var environment = GetEnvironment();
-        _logger.LogDebug("Environment detected: {Environment}", environment);
+        Logger.LogDebug("Environment detected: {Environment}", environment);
 
         if (environment == CloudEnvironment.Unknown)
         {
-            _logger.LogError(
+            Logger.LogError(
                 "{Environment} environment detected, will not start the Datadog Serverless Compatibility Layer",
                 environment
             );
@@ -148,19 +149,19 @@ public static class CompatibilityLayer
 
         if (!IsWindows() && !IsLinux())
         {
-            _logger.LogError(
+            Logger.LogError(
                 "Platform {OS} detected, the Datadog Serverless Compatibility Layer is only supported on Windows and Linux",
                 OS
             );
             return;
         }
 
-            var binaryPath = GetBinaryPath();
-            _logger.LogDebug("Spawning process from binary at path {binaryPath}", binaryPath);
+        var binaryPath = GetBinaryPath();
+        _logger.LogDebug("Spawning process from binary at path {binaryPath}", binaryPath);
 
         if (!File.Exists(binaryPath))
         {
-            _logger.LogError(
+            Logger.LogError(
                 "Serverless Compatibility Layer did not start, could not find binary at path {binaryPath}",
                 binaryPath
             );
@@ -168,7 +169,7 @@ public static class CompatibilityLayer
         }
 
         var packageVersion = GetPackageVersion();
-        _logger.LogDebug("Found package version {packageVersion}", packageVersion);
+        Logger.LogDebug("Found package version {packageVersion}", packageVersion);
 
             try
             {
@@ -186,7 +187,7 @@ public static class CompatibilityLayer
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Exception when starting {binaryPath}", binaryPath);
+            Logger.LogError(ex, "Exception when starting {binaryPath}", binaryPath);
         }
     }
 }
