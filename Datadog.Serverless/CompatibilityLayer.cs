@@ -49,15 +49,9 @@ public static class CompatibilityLayer
         Logger = loggerFactory.CreateLogger("Datadog.Serverless");
     }
 
-    private static bool IsWindows()
-    {
-        return RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
-    }
+    private static bool IsWindows() => RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
 
-    private static bool IsLinux()
-    {
-        return RuntimeInformation.IsOSPlatform(OSPlatform.Linux);
-    }
+    private static bool IsLinux() => RuntimeInformation.IsOSPlatform(OSPlatform.Linux);
 
     private static CloudEnvironment GetEnvironment()
     {
