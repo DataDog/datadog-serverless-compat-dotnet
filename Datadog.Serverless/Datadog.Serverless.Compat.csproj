@@ -6,6 +6,7 @@
     <Nullable>enable</Nullable>
     <Version>0.0.0</Version>
     <LangVersion>latest</LangVersion>
+    <RootNamespace>Datadog.Serverless</RootNamespace>
 
     <!-- NuGet package -->
     <PackageId>Datadog.Serverless.Compat</PackageId>
