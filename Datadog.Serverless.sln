@@ -1,0 +1,28 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Datadog.Serverless.Compat", "Datadog.Serverless\Datadog.Serverless.Compat.csproj", "{8B0F688F-EF0F-487A-9C75-D38368A5DEFB}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Datadog.Serverless.Tests", "Datadog.Serverless.Tests\Datadog.Serverless.Tests.csproj", "{C53C00F3-CCC6-47BF-97B6-B658EE928ACC}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{8B0F688F-EF0F-487A-9C75-D38368A5DEFB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8B0F688F-EF0F-487A-9C75-D38368A5DEFB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8B0F688F-EF0F-487A-9C75-D38368A5DEFB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8B0F688F-EF0F-487A-9C75-D38368A5DEFB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C53C00F3-CCC6-47BF-97B6-B658EE928ACC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C53C00F3-CCC6-47BF-97B6-B658EE928ACC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C53C00F3-CCC6-47BF-97B6-B658EE928ACC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C53C00F3-CCC6-47BF-97B6-B658EE928ACC}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
