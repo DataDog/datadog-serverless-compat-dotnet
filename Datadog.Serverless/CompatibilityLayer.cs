@@ -105,11 +105,9 @@ public static class CompatibilityLayer
     {
         try
         {
-            var assembly = Assembly.GetExecutingAssembly();
-            var version = assembly
+            return Assembly.GetExecutingAssembly()
                           .GetCustomAttribute<AssemblyInformationalVersionAttribute>()
-                          ?.InformationalVersion;
-            return version ?? "unknown";
+                           ?.InformationalVersion ?? "unknown";
         }
         catch (Exception e)
         {
