@@ -12,16 +12,7 @@ namespace Datadog.Serverless;
 
 public static class CompatibilityLayer
 {
-    private enum CloudEnvironment
-    {
-        Unknown,
-        AzureFunction,
-    }
-
-    private static readonly string OS = RuntimeInformation.OSDescription.ToLower();
     private static readonly ILogger Logger;
-
-    private static string _homeDir = Path.DirectorySeparatorChar.ToString();
 
     [DllImport("libc", SetLastError = true)]
     private static extern int chmod(string filePath, uint mode);
@@ -42,35 +33,37 @@ public static class CompatibilityLayer
             _ => LogLevel.Information
         };
 
-        var loggerFactory = LoggerFactory.Create(builder =>
-        {
-            builder.AddConsole().SetMinimumLevel(logLevel);
-        });
+        var loggerFactory = LoggerFactory.Create(builder => { builder.AddConsole().SetMinimumLevel(logLevel); });
         Logger = loggerFactory.CreateLogger("Datadog.Serverless");
     }
 
-    private static bool IsWindows() => RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
-
-    private static bool IsLinux() => RuntimeInformation.IsOSPlatform(OSPlatform.Linux);
-
-    private static CloudEnvironment GetEnvironment()
+    internal static CloudEnvironment GetEnvironment()
     {
         if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("FUNCTIONS_EXTENSION_VERSION")) &&
             !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("FUNCTIONS_WORKER_RUNTIME")))
         {
-            _homeDir = Path.Combine(
-                Path.DirectorySeparatorChar.ToString(),
-                "home",
-                "site",
-                "wwwroot"
-            );
             return CloudEnvironment.AzureFunction;
         }
 
         return CloudEnvironment.Unknown;
     }
 
-    private static string GetBinaryPath()
+    internal static OS GetOs()
+    {
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            return OS.Windows;
+        }
+
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+        {
+            return OS.Linux;
+        }
+
+        return OS.Unknown;
+    }
+
+    internal static string GetExecutablePath(CloudEnvironment environment, OS os)
     {
         var binaryPath = Environment.GetEnvironmentVariable("DD_SERVERLESS_COMPAT_PATH");
 
@@ -80,36 +73,20 @@ public static class CompatibilityLayer
             return binaryPath;
         }
 
-        if (IsWindows())
+        return (environment, os) switch
         {
-            Logger.LogDebug("Detected {OS}", OS);
-            return Path.Combine(
-                _homeDir,
-                "datadog",
-                "bin",
-                "windows-amd64",
-                "datadog-serverless-compat.exe"
-            );
-        }
-        else
-        {
-            Logger.LogDebug("Detected {OS}", OS);
-            return Path.Combine(
-                _homeDir,
-                "datadog",
-                "bin",
-                "linux-amd64",
-                "datadog-serverless-compat"
-            );
-        }
+            (CloudEnvironment.AzureFunction, OS.Windows) => @"C:\home\site\wwwroot\datadog\bin\windows-amd64\datadog-serverless-compat.exe",
+            (CloudEnvironment.AzureFunction, OS.Linux) => "/home/site/wwwroot/datadog/bin/linux-amd64/datadog-serverless-compat",
+            _ => string.Empty
+        };
     }
 
-    private static string GetPackageVersion()
+    internal static string GetPackageVersion()
     {
         try
         {
             return Assembly.GetExecutingAssembly()
-                          .GetCustomAttribute<AssemblyInformationalVersionAttribute>()
+                           .GetCustomAttribute<AssemblyInformationalVersionAttribute>()
                            ?.InformationalVersion ?? "unknown";
         }
         catch (Exception e)
@@ -121,50 +98,63 @@ public static class CompatibilityLayer
 
     public static void Start()
     {
+        var os = GetOs();
         var environment = GetEnvironment();
-        Logger.LogDebug("Environment detected: {Environment}", environment);
+        var packageVersion = GetPackageVersion();
+        var executablePath = GetExecutablePath(environment, os);
+
+        if (Logger.IsEnabled(LogLevel.Debug))
+        {
+            Logger.LogDebug("OS Description: {OSDescription}", RuntimeInformation.OSDescription.ToLower());
+            Logger.LogDebug("Detected OS: {OS}", os);
+            Logger.LogDebug("Detected cloud environment: {Environment}", environment);
+            Logger.LogDebug("Package version: {PackageVersion}", packageVersion);
+            Logger.LogDebug("Executable path: {ExecutablePath}", executablePath);
+        }
+
+        if (os == OS.Unknown)
+        {
+            Logger.LogError(
+                "OS detected: {OS}. The Datadog Serverless Compatibility Layer is only supported on Windows and Linux",
+                RuntimeInformation.OSDescription.ToLower());
+
+            return;
+        }
 
         if (environment == CloudEnvironment.Unknown)
         {
             Logger.LogError(
                 "{Environment} environment detected, will not start the Datadog Serverless Compatibility Layer",
-                environment
-            );
+                environment);
+
             return;
         }
 
-        if (!IsWindows() && !IsLinux())
+        if (!File.Exists(executablePath))
         {
             Logger.LogError(
-                "Platform {OS} detected, the Datadog Serverless Compatibility Layer is only supported on Windows and Linux",
-                OS
-            );
+                "Serverless Compatibility Layer did not start, could not find executable at path {executablePath}",
+                executablePath);
+
             return;
         }
 
         var binaryPath = GetBinaryPath();
-        _logger.LogDebug("Spawning process from binary at path {binaryPath}", binaryPath);
+        Logger.LogDebug("Spawning process from binary at path {binaryPath}", binaryPath);
 
         if (!File.Exists(binaryPath))
         {
-            Logger.LogError(
-                "Serverless Compatibility Layer did not start, could not find binary at path {binaryPath}",
-                binaryPath
-            );
-            return;
+            Logger.LogDebug("Spawning process from executable at path {executablePath}", executablePath);
         }
 
-        var packageVersion = GetPackageVersion();
-        Logger.LogDebug("Found package version {packageVersion}", packageVersion);
-
-            try
+        try
+        {
+            var startInfo = new ProcessStartInfo
             {
-                var startInfo = new ProcessStartInfo
-                {
-                    FileName = binaryPath,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                };
+                FileName = binaryPath,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
 
             startInfo.EnvironmentVariables["DD_SERVERLESS_COMPAT_VERSION"] = packageVersion;
 
@@ -173,7 +163,7 @@ public static class CompatibilityLayer
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Exception when starting {binaryPath}", binaryPath);
+            Logger.LogError(ex, "Exception when starting {binaryPath}", executablePath);
         }
     }
 }
