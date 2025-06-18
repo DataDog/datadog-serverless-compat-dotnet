@@ -12,14 +12,14 @@ using Microsoft.Extensions.Logging;
 
 namespace Datadog.Serverless;
 
-internal enum CloudEnvironment
-{
-    AzureFunction,
-    Unknown
-}
-
 public static class CompatibilityLayer
 {
+    private enum CloudEnvironment
+    {
+        Unknown,
+        AzureFunction,
+    }
+
     private static readonly string OS = RuntimeInformation.OSDescription.ToLower();
     private static readonly ILogger _logger;
     private static string homeDir = Path.DirectorySeparatorChar.ToString();
