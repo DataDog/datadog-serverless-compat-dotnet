@@ -1,7 +1,7 @@
 # This workflow will build a .NET project
 # For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-net
 
-name: .NET
+name: Build and Test
 
 on:
   push:
@@ -10,19 +10,28 @@ on:
     branches: [ "main" ]
 
 jobs:
-  build:
-
-    runs-on: ubuntu-latest
+  test:
+    name: Run tests on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ ubuntu-latest, windows-latest ]
+        dotnet-version: [ '8.0.x' ]  # Or include multiple versions here if needed
 
     steps:
-    - uses: actions/checkout@v4
-    - name: Setup .NET
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET SDK
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: 9.0.x
+
     - name: Restore dependencies
       run: dotnet restore Datadog.Serverless.Tests/Datadog.Serverless.Tests.csproj
+
     - name: Build
       run: dotnet build Datadog.Serverless.Tests/Datadog.Serverless.Tests.csproj --no-restore
+
     - name: Test
       run: dotnet test Datadog.Serverless.Tests/Datadog.Serverless.Tests.csproj --no-build --verbosity normal
