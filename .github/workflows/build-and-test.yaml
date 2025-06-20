@@ -3,6 +3,9 @@
 
 name: Build and Test
 
+permissions:
+  contents: read  # Allow the workflow to read the repository contents
+
 on:
   push:
     branches: [ "main" ]
