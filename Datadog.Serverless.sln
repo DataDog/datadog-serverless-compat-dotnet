@@ -7,6 +7,13 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Datadog.Serverless.Compat",
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Datadog.Serverless.Tests", "Datadog.Serverless.Tests\Datadog.Serverless.Tests.csproj", "{C53C00F3-CCC6-47BF-97B6-B658EE928ACC}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "solution items", "solution items", "{FC3D2DD4-B06B-48F3-9B37-62F1A27EFA49}"
+	ProjectSection(SolutionItems) = preProject
+		.github\workflows\build-and-test.yaml = .github\workflows\build-and-test.yaml
+		.github\workflows\publish.yaml = .github\workflows\publish.yaml
+		README.md = README.md
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
