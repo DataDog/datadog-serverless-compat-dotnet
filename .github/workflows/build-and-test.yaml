@@ -19,7 +19,7 @@ jobs:
     strategy:
       matrix:
         os: [ ubuntu-latest, windows-latest ]
-        dotnet-version: [ '8.0.x' ]  # Or include multiple versions here if needed
+        dotnet-version: [ '9.0.x' ] # use .NET SDK 9.0
 
     steps:
     - name: Checkout code
