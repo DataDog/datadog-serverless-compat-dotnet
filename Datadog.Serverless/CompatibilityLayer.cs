@@ -65,12 +65,12 @@ public static class CompatibilityLayer
 
     internal static string GetExecutablePath(CloudEnvironment environment, OS os)
     {
-        var binaryPath = Environment.GetEnvironmentVariable("DD_SERVERLESS_COMPAT_PATH");
+        var executablePath = Environment.GetEnvironmentVariable("DD_SERVERLESS_COMPAT_PATH");
 
-        if (!string.IsNullOrEmpty(binaryPath))
+        if (!string.IsNullOrEmpty(executablePath))
         {
-            Logger.LogDebug("Detected user configured binary path {binaryPath}", binaryPath);
-            return binaryPath;
+            Logger.LogDebug("Detected user-configured executable path DD_SERVERLESS_COMPAT_PATH={executablePath}", executablePath);
+            return executablePath;
         }
 
         return (environment, os) switch
