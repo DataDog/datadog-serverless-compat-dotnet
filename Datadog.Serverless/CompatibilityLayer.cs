@@ -24,6 +24,9 @@ namespace Datadog.Serverless
         private static readonly ILogger _logger;
         private static string homeDir = Path.DirectorySeparatorChar.ToString();
 
+        [DllImport("libc", SetLastError = true)]
+        private static extern int chmod(string filePath, uint mode);
+
         static CompatibilityLayer()
         {
             var logLevelEnv = Environment.GetEnvironmentVariable("DD_LOG_LEVEL");
@@ -129,6 +132,19 @@ namespace Datadog.Serverless
             }
         }
 
+        private static void SetFilePermissions(string filePath)
+        {
+            if (IsWindows())
+                return;
+
+            int result = chmod(filePath, 0x1E4); // Octal 0744
+            if (result != 0)
+            {
+                int errno = Marshal.GetLastWin32Error();
+                throw new InvalidOperationException($"chmod failed with errno {errno}");
+            }
+        }
+
         public static void Start()
         {
             var environment = GetEnvironment();
@@ -153,7 +169,6 @@ namespace Datadog.Serverless
             }
 
             var binaryPath = GetBinaryPath();
-            _logger.LogDebug("Spawning process from binary at path {binaryPath}", binaryPath);
 
             if (!File.Exists(binaryPath))
             {
@@ -169,9 +184,19 @@ namespace Datadog.Serverless
 
             try
             {
+                string tempDir = Path.Combine(Path.GetTempPath(), "datadog");
+                Directory.CreateDirectory(tempDir);
+                string executableFilePath = Path.Combine(tempDir, Path.GetFileName(binaryPath));
+                File.Copy(binaryPath, executableFilePath, overwrite: true);
+                SetFilePermissions(executableFilePath);
+                _logger.LogDebug(
+                    "Spawning process from binary at path {executableFilePath}",
+                    executableFilePath
+                );
+
                 var startInfo = new ProcessStartInfo
                 {
-                    FileName = binaryPath,
+                    FileName = executableFilePath,
                     UseShellExecute = false,
                     CreateNoWindow = true
                 };
