@@ -115,7 +115,7 @@ public static class CompatibilityLayer
         if (os == OS.Unknown)
         {
             Logger.LogError(
-                "OS detected: {OS}. The Datadog Serverless Compatibility Layer is only supported on Windows and Linux",
+                "The Datadog Serverless Compatibility Layer does not support the detected OS: {OS}.",
                 RuntimeInformation.OSDescription.ToLower());
 
             return;
@@ -124,7 +124,7 @@ public static class CompatibilityLayer
         if (environment == CloudEnvironment.Unknown)
         {
             Logger.LogError(
-                "{Environment} environment detected, will not start the Datadog Serverless Compatibility Layer",
+                "The Datadog Serverless Compatibility Layer does not support the detected cloud environment: {Environment}.",
                 environment);
 
             return;
@@ -133,7 +133,7 @@ public static class CompatibilityLayer
         if (!File.Exists(executablePath))
         {
             Logger.LogError(
-                "Serverless Compatibility Layer did not start, could not find executable at path {executablePath}",
+                "The Datadog Serverless Compatibility Layer executable was not found at path {executablePath}",
                 executablePath);
 
             return;
