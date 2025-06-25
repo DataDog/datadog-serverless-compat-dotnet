@@ -189,7 +189,10 @@ namespace Datadog.Serverless
                 string executableFilePath = Path.Combine(tempDir, Path.GetFileName(binaryPath));
                 File.Copy(binaryPath, executableFilePath, overwrite: true);
                 SetFilePermissions(executableFilePath);
-                _logger.LogDebug("Spawning process from binary at path {binaryPath}", binaryPath);
+                _logger.LogDebug(
+                    "Spawning process from binary at path {executableFilePath}",
+                    executableFilePath
+                );
 
                 var startInfo = new ProcessStartInfo
                 {
