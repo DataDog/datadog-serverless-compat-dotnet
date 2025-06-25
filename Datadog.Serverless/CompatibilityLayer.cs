@@ -91,7 +91,7 @@ public static class CompatibilityLayer
         }
         catch (Exception e)
         {
-            _logger.LogError(e, "Unable to identify package version");
+            Logger.LogError(e, "Unable to identify package version");
             return "unknown";
         }
     }
@@ -139,19 +139,13 @@ public static class CompatibilityLayer
             return;
         }
 
-        var binaryPath = GetBinaryPath();
-        Logger.LogDebug("Spawning process from binary at path {binaryPath}", binaryPath);
-
-        if (!File.Exists(binaryPath))
-        {
-            Logger.LogDebug("Spawning process from executable at path {executablePath}", executablePath);
-        }
+        Logger.LogDebug("Spawning process from executable at path {executablePath}", executablePath);
 
         try
         {
             var startInfo = new ProcessStartInfo
             {
-                FileName = binaryPath,
+                FileName = executablePath,
                 UseShellExecute = false,
                 CreateNoWindow = true
             };
