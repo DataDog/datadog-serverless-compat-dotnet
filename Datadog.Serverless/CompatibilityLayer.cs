@@ -96,6 +96,50 @@ public static class CompatibilityLayer
         }
     }
 
+    internal static bool TryCopyExecutable(string sourceFilename, out string destinationFilename)
+    {
+        destinationFilename = string.Empty;
+
+        try
+        {
+            var tempDir = Path.Combine(Path.GetTempPath(), "datadog");
+            destinationFilename = Path.Combine(tempDir, Path.GetFileName(sourceFilename));
+            Directory.CreateDirectory(tempDir);
+            File.Copy(sourceFilename, destinationFilename, overwrite: true);
+
+            Logger.LogDebug("Copied executable from {Source} to {Destination}", sourceFilename, destinationFilename);
+            return true;
+        }
+        catch (Exception e)
+        {
+            Logger.LogError(e, "Failed to copy executable from {Source} to {Destination}", sourceFilename, destinationFilename);
+            return false;
+        }
+    }
+
+    internal static bool TrySetFilePermissions(string filePath)
+    {
+        try
+        {
+            var result = chmod(filePath, 0x1E4); // Octal 0744
+
+            if (result == 0)
+            {
+                Logger.LogDebug("Changed permissions to 0744 for {filePath}", filePath);
+                return true;
+            }
+
+            var errno = Marshal.GetLastWin32Error();
+            Logger.LogError("chmod failed with errno {Errno}", errno);
+        }
+        catch (Exception e)
+        {
+            Logger.LogError(e, "chmod failed");
+        }
+
+        return false;
+    }
+
     public static void Start()
     {
         var os = GetOs();
@@ -137,6 +181,23 @@ public static class CompatibilityLayer
                 executablePath);
 
             return;
+        }
+
+        if (os == OS.Linux)
+        {
+            if (TryCopyExecutable(executablePath, out var tempExecutablePath))
+            {
+                executablePath = tempExecutablePath;
+            }
+            else
+            {
+                return;
+            }
+
+            if (!TrySetFilePermissions(tempExecutablePath))
+            {
+                return;
+            }
         }
 
         Logger.LogDebug("Spawning process from executable at path {executablePath}", executablePath);
