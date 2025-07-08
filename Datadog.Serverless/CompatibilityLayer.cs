@@ -6,7 +6,6 @@
 using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.InteropServices;
-using Microsoft.Extensions.Logging;
 
 namespace Datadog.Serverless;
 
@@ -33,8 +32,7 @@ public static class CompatibilityLayer
             _ => LogLevel.Information,
         };
 
-        var loggerFactory = LoggerFactory.Create(builder => { builder.AddConsole().SetMinimumLevel(logLevel); });
-        Logger = loggerFactory.CreateLogger("Datadog.Serverless");
+        Logger = new ConsoleLogger("Datadog.Serverless", logLevel);
     }
 
     internal static CloudEnvironment GetEnvironment()
@@ -69,7 +67,7 @@ public static class CompatibilityLayer
 
         if (!string.IsNullOrEmpty(executablePath))
         {
-            Logger.LogDebug("Detected user-configured executable path DD_SERVERLESS_COMPAT_PATH={executablePath}", executablePath);
+            Logger.LogDebug($"Detected user-configured executable path DD_SERVERLESS_COMPAT_PATH={executablePath}");
             return executablePath;
         }
 
@@ -107,12 +105,12 @@ public static class CompatibilityLayer
             Directory.CreateDirectory(tempDir);
             File.Copy(sourceFilename, destinationFilename, overwrite: true);
 
-            Logger.LogDebug("Copied executable from {Source} to {Destination}", sourceFilename, destinationFilename);
+            Logger.LogDebug($"Copied executable from {sourceFilename} to {destinationFilename}");
             return true;
         }
         catch (Exception e)
         {
-            Logger.LogError(e, "Failed to copy executable from {Source} to {Destination}", sourceFilename, destinationFilename);
+            Logger.LogError(e, $"Failed to copy executable from {sourceFilename} to {sourceFilename}");
             return false;
         }
     }
@@ -125,12 +123,12 @@ public static class CompatibilityLayer
 
             if (result == 0)
             {
-                Logger.LogDebug("Changed permissions to 0744 for {filePath}", filePath);
+                Logger.LogDebug($"Changed permissions to 0744 for {filePath}");
                 return true;
             }
 
             var errno = Marshal.GetLastWin32Error();
-            Logger.LogError("chmod failed with errno {Errno}", errno);
+            Logger.LogError($"chmod failed with errno {errno}");
         }
         catch (Exception e)
         {
@@ -151,19 +149,18 @@ public static class CompatibilityLayer
         // log detected values
         if (Logger.IsEnabled(LogLevel.Debug))
         {
-            Logger.LogDebug("OS Description: {OSDescription}", RuntimeInformation.OSDescription.ToLower());
-            Logger.LogDebug("Detected OS: {OS}", os);
-            Logger.LogDebug("Detected cloud environment: {Environment}", environment);
-            Logger.LogDebug("Package version: {PackageVersion}", packageVersion);
-            Logger.LogDebug("Executable path: {ExecutablePath}", executablePath);
+            Logger.LogDebug($"OS Description: {RuntimeInformation.OSDescription}");
+            Logger.LogDebug($"Detected OS: {os}");
+            Logger.LogDebug($"Detected cloud environment: {environment}");
+            Logger.LogDebug($"Package version: {packageVersion}");
+            Logger.LogDebug($"Executable path: {packageVersion}");
         }
 
         // validate each value and bail out if any are invalid
         if (os == OS.Unknown)
         {
             Logger.LogError(
-                "The Datadog Serverless Compatibility Layer does not support the detected OS: {OS}.",
-                RuntimeInformation.OSDescription.ToLower());
+                $"The Datadog Serverless Compatibility Layer does not support the detected OS: {RuntimeInformation.OSDescription}.");
 
             return;
         }
@@ -171,8 +168,7 @@ public static class CompatibilityLayer
         if (environment == CloudEnvironment.Unknown)
         {
             Logger.LogError(
-                "The Datadog Serverless Compatibility Layer does not support the detected cloud environment: {Environment}.",
-                environment);
+                $"The Datadog Serverless Compatibility Layer does not support the detected cloud environment: {environment}.");
 
             return;
         }
@@ -180,8 +176,7 @@ public static class CompatibilityLayer
         if (!File.Exists(executablePath))
         {
             Logger.LogError(
-                "The Datadog Serverless Compatibility Layer executable was not found at path {executablePath}",
-                executablePath);
+                $"The Datadog Serverless Compatibility Layer executable was not found at path {executablePath}");
 
             return;
         }
@@ -203,7 +198,7 @@ public static class CompatibilityLayer
             }
         }
 
-        Logger.LogDebug("Spawning process from executable at path {executablePath}", executablePath);
+        Logger.LogDebug($"Spawning process from executable at path {executablePath}");
 
         try
         {
@@ -221,7 +216,7 @@ public static class CompatibilityLayer
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Exception when starting {binaryPath}", executablePath);
+            Logger.LogError(ex, $"Exception when starting {executablePath}");
         }
     }
 }
