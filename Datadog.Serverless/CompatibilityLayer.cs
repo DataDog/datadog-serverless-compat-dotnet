@@ -13,7 +13,7 @@ public static class CompatibilityLayer
 {
     private static readonly ILogger Logger;
 
-    [DllImport("libc", SetLastError = true)]
+    [DllImport("libc", SetLastError = true, CharSet = CharSet.Ansi)]
     private static extern int chmod(string filePath, uint mode);
 
     static CompatibilityLayer()
