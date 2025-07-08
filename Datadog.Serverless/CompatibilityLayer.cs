@@ -30,7 +30,7 @@ public static class CompatibilityLayer
             "INFO" => LogLevel.Information,
             "DEBUG" => LogLevel.Debug,
             "TRACE" => LogLevel.Trace,
-            _ => LogLevel.Information
+            _ => LogLevel.Information,
         };
 
         var loggerFactory = LoggerFactory.Create(builder => { builder.AddConsole().SetMinimumLevel(logLevel); });
@@ -77,7 +77,7 @@ public static class CompatibilityLayer
         {
             (CloudEnvironment.AzureFunction, OS.Windows) => @"C:\home\site\wwwroot\datadog\bin\windows-amd64\datadog-serverless-compat.exe",
             (CloudEnvironment.AzureFunction, OS.Linux) => "/home/site/wwwroot/datadog/bin/linux-amd64/datadog-serverless-compat",
-            _ => string.Empty
+            _ => string.Empty,
         };
     }
 
@@ -211,7 +211,7 @@ public static class CompatibilityLayer
             {
                 FileName = executablePath,
                 UseShellExecute = false,
-                CreateNoWindow = true
+                CreateNoWindow = true,
             };
 
             startInfo.EnvironmentVariables["DD_SERVERLESS_COMPAT_VERSION"] = packageVersion;
