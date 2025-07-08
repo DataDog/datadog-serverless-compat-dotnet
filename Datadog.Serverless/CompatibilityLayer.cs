@@ -142,11 +142,13 @@ public static class CompatibilityLayer
 
     public static void Start()
     {
+        // detect values
         var os = GetOs();
         var environment = GetEnvironment();
         var packageVersion = GetPackageVersion();
         var executablePath = GetExecutablePath(environment, os);
 
+        // log detected values
         if (Logger.IsEnabled(LogLevel.Debug))
         {
             Logger.LogDebug("OS Description: {OSDescription}", RuntimeInformation.OSDescription.ToLower());
@@ -156,6 +158,7 @@ public static class CompatibilityLayer
             Logger.LogDebug("Executable path: {ExecutablePath}", executablePath);
         }
 
+        // validate each value and bail out if any are invalid
         if (os == OS.Unknown)
         {
             Logger.LogError(
