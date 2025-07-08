@@ -22,14 +22,14 @@ public static class CompatibilityLayer
 
         var logLevel = logLevelEnv?.ToUpper() switch
         {
-            "OFF" => LogLevel.None,
+            "OFF" or "NONE" => LogLevel.None,
             "CRITICAL" => LogLevel.Critical,
             "ERROR" => LogLevel.Error,
             "WARN" => LogLevel.Warning,
-            "INFO" => LogLevel.Information,
+            "INFO" or "INFORMATION" => LogLevel.Information,
             "DEBUG" => LogLevel.Debug,
             "TRACE" => LogLevel.Trace,
-            _ => LogLevel.Information,
+            _ => LogLevel.Information, // default
         };
 
         Logger = new ConsoleLogger("Datadog.Serverless", logLevel);
