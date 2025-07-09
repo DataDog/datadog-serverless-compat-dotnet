@@ -6,6 +6,7 @@
 using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using Datadog.Serverless.Logging;
 
 namespace Datadog.Serverless;
 

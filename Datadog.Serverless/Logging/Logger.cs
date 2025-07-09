@@ -1,4 +1,4 @@
-﻿namespace Datadog.Serverless;
+﻿namespace Datadog.Serverless.Logging;
 
 internal sealed class ConsoleLogger : ILogger
 {

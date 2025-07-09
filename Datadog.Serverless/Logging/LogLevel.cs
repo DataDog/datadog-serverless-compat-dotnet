@@ -1,4 +1,4 @@
-namespace Datadog.Serverless;
+namespace Datadog.Serverless.Logging;
 
 public enum LogLevel
 {
