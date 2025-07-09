@@ -82,11 +82,11 @@ public static class CompatibilityLayer
             return executablePath;
         }
 
-        return (environment, os) switch
+        return os switch
         {
-            (CloudEnvironment.AzureFunction, OS.Windows) => @"C:\home\site\wwwroot\datadog\bin\windows-amd64\datadog-serverless-compat.exe",
-            (CloudEnvironment.AzureFunction, OS.Linux) => "/home/site/wwwroot/datadog/bin/linux-amd64/datadog-serverless-compat",
-            _ => string.Empty,
+            OS.Windows when environment is CloudEnvironment.AzureFunction => @"C:\home\site\wwwroot\datadog\bin\windows-amd64\datadog-serverless-compat.exe",
+            OS.Linux when environment is CloudEnvironment.AzureFunction => "/home/site/wwwroot/datadog/bin/linux-amd64/datadog-serverless-compat",
+            _ => string.Empty
         };
     }
 
