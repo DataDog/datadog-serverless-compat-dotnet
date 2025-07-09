@@ -31,10 +31,10 @@ jobs:
         dotnet-version: 9.0.x
 
     - name: Restore dependencies
-      run: dotnet restore Datadog.Serverless.Tests/Datadog.Serverless.Tests.csproj
+      run: dotnet restore Datadog.Serverless.Compat.Tests/Datadog.Serverless.Compat.Tests.csproj
 
     - name: Build
-      run: dotnet build Datadog.Serverless.Tests/Datadog.Serverless.Tests.csproj --no-restore
+      run: dotnet build Datadog.Serverless.Compat.Tests/Datadog.Serverless.Compat.Tests.csproj --no-restore
 
     - name: Test
-      run: dotnet test Datadog.Serverless.Tests/Datadog.Serverless.Tests.csproj --no-build --verbosity normal
+      run: dotnet test Datadog.Serverless.Compat.Tests/Datadog.Serverless.Compat.Tests.csproj --no-build --verbosity normal
