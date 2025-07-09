@@ -1,7 +1,7 @@
 ﻿using Xunit;
 using Datadog.Serverless.Logging;
 
-namespace Datadog.Serverless.Tests.Logging;
+namespace Datadog.Serverless.Compat.Tests.Logging;
 
 public class LoggerTests
 {

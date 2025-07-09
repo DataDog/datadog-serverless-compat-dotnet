@@ -1,7 +1,7 @@
 ﻿using System.Runtime.InteropServices;
 using Xunit;
 
-namespace Datadog.Serverless.Tests;
+namespace Datadog.Serverless.Compat.Tests;
 
 public class CompatibilityLayerTests
 {

@@ -1,3 +1,3 @@
 ﻿using System.Runtime.CompilerServices;
 
-[assembly: InternalsVisibleTo("Datadog.Serverless.Tests")]
+[assembly: InternalsVisibleTo("Datadog.Serverless.Compat.Tests")]
