@@ -33,7 +33,7 @@ public static class CompatibilityLayer
             _ => LogLevel.Information, // default
         };
 
-        Logger = new ConsoleLogger("Datadog.Serverless", logLevel);
+        Logger = new Logger(Console.Out, nameof(CompatibilityLayer), logLevel);
     }
 
     internal static CloudEnvironment GetEnvironment()

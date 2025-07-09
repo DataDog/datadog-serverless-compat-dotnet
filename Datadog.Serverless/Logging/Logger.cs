@@ -1,12 +1,14 @@
 ﻿namespace Datadog.Serverless.Logging;
 
-internal sealed class ConsoleLogger : ILogger
+internal sealed class Logger : ILogger
 {
+    private readonly TextWriter _writer;
     private readonly string _source;
     private readonly LogLevel _minimumLevel;
 
-    public ConsoleLogger(string source, LogLevel minimumLevel)
+    public Logger(TextWriter writer, string source, LogLevel minimumLevel)
     {
+        _writer = writer;
         _source = source;
         _minimumLevel = minimumLevel;
     }
@@ -23,14 +25,25 @@ internal sealed class ConsoleLogger : ILogger
             return;
         }
 
-        var logString = $"[{DateTimeOffset.UtcNow:yyyy-MM-dd HH:mm:ss.fff zzz} | {_source} | {level}] {message}";
+        var levelString = level switch
+        {
+            LogLevel.Trace => "TRACE",
+            LogLevel.Debug => "DEBUG",
+            LogLevel.Information => "INFO",
+            LogLevel.Warning => "WARN",
+            LogLevel.Error => "ERROR",
+            LogLevel.Critical => "CRITICAL",
+            _ => "UNKNOWN"
+        };
+
+        var logString = $"[{DateTimeOffset.UtcNow:yyyy-MM-dd HH:mm:ss.fff zzz} | {_source} | {levelString}] {message}";
 
         if (exception != null)
         {
             logString = $"{logString} | {ToSingleLineString(exception)}";
         }
 
-        Console.WriteLine(logString);
+        _writer.WriteLine(logString);
     }
 
     private static string ToSingleLineString(Exception exception)
