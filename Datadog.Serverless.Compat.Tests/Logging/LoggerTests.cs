@@ -49,7 +49,7 @@ public class LoggerTests
         logger.LogInformation(message);
 
         var output = writer.ToString();
-        Assert.Matches(@"^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3} \+00:00 \| TestSource \| INFO\] Test message\r\n$", output);
+        Assert.Matches(@"^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3} \+00:00 \| TestSource \| INFO\] Test message\r?\n$", output);
     }
 
     [Fact]
@@ -71,7 +71,7 @@ public class LoggerTests
         logger.LogError(exception, "Error occurred");
 
         var output = writer.ToString();
-        Assert.Matches(@"^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3} \+00:00 \| TestSource \| ERROR\] Error occurred \| System.InvalidOperationException: Test exception\\n(.+)\r\n$", output);
+        Assert.Matches(@"^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3} \+00:00 \| TestSource \| ERROR\] Error occurred \| System.InvalidOperationException: Test exception\\n(.+)\r?\n$", output);
     }
 
     [Fact]
