@@ -16,7 +16,7 @@ internal sealed class ConsoleLogger : ILogger
         return level >= _minimumLevel;
     }
 
-    private void Log(LogLevel level, Exception? exception, string? message)
+    private void Log(LogLevel level, Exception? exception, string message)
     {
         if (!IsEnabled(level))
         {
@@ -45,21 +45,21 @@ internal sealed class ConsoleLogger : ILogger
 #endif
     }
 
-    public void LogTrace(string? message) => Log(LogLevel.Trace, exception: null, message);
+    public void LogTrace(string message) => Log(LogLevel.Trace, exception: null, message);
 
-    public void LogDebug(string? message) => Log(LogLevel.Debug, exception: null, message);
+    public void LogDebug(string message) => Log(LogLevel.Debug, exception: null, message);
 
-    public void LogInformation(string? message) => Log(LogLevel.Information, exception: null, message);
+    public void LogInformation(string message) => Log(LogLevel.Information, exception: null, message);
 
-    public void LogWarning(string? message) => Log(LogLevel.Warning, exception: null, message);
+    public void LogWarning(string message) => Log(LogLevel.Warning, exception: null, message);
 
-    public void LogWarning(Exception? exception, string? message) => Log(LogLevel.Warning, exception, message);
+    public void LogWarning(Exception? exception, string message) => Log(LogLevel.Warning, exception, message);
 
-    public void LogError(string? message) => Log(LogLevel.Error, exception: null, message);
+    public void LogError(string message) => Log(LogLevel.Error, exception: null, message);
 
-    public void LogError(Exception? exception, string? message) => Log(LogLevel.Error, exception, message);
+    public void LogError(Exception? exception, string message) => Log(LogLevel.Error, exception, message);
 
-    public void LogCritical(string? message) => Log(LogLevel.Critical, exception: null, message);
+    public void LogCritical(string message) => Log(LogLevel.Critical, exception: null, message);
 
-    public void LogCritical(Exception? exception, string? message) => Log(LogLevel.Critical, exception, message);
+    public void LogCritical(Exception? exception, string message) => Log(LogLevel.Critical, exception, message);
 }
