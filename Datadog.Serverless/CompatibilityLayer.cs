@@ -49,6 +49,15 @@ public static class CompatibilityLayer
 
     internal static OS GetOs()
     {
+#if NETFRAMEWORK
+        // RuntimeInformation was added in net471, but we target net461
+        if (Environment.OSVersion.Platform == PlatformID.Win32NT)
+        {
+            // this should always be true since .NET Framework only runs on Windows,
+            // but it doesn't hurt to check (hello Mono).
+            return OS.Windows;
+        }
+#else
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
             return OS.Windows;
@@ -58,6 +67,7 @@ public static class CompatibilityLayer
         {
             return OS.Linux;
         }
+#endif
 
         return OS.Unknown;
     }
