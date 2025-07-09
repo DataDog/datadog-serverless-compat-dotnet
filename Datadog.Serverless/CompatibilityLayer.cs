@@ -160,7 +160,6 @@ public static class CompatibilityLayer
         // log detected values
         if (Logger.IsEnabled(LogLevel.Debug))
         {
-            Logger.LogDebug($"OS Description: {RuntimeInformation.OSDescription}");
             Logger.LogDebug($"Detected OS: {os}");
             Logger.LogDebug($"Detected cloud environment: {environment}");
             Logger.LogDebug($"Package version: {packageVersion}");
@@ -171,7 +170,7 @@ public static class CompatibilityLayer
         if (os == OS.Unknown)
         {
             Logger.LogError(
-                $"The Datadog Serverless Compatibility Layer does not support the detected OS: {RuntimeInformation.OSDescription}.");
+                $"The Datadog Serverless Compatibility Layer does not support the detected OS: {os}.");
 
             return;
         }
