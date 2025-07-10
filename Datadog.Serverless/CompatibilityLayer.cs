@@ -67,6 +67,11 @@ public static class CompatibilityLayer
         {
             return OS.Linux;
         }
+
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+        {
+            return OS.MacOS;
+        }
 #endif
 
         return OS.Unknown;
@@ -171,7 +176,7 @@ public static class CompatibilityLayer
         }
 
         // validate each value and bail out if any are invalid
-        if (os == OS.Unknown)
+        if (os is not (OS.Windows or OS.Linux))
         {
             Logger.LogError(
                 $"The Datadog Serverless Compatibility Layer does not support the detected OS: {os}.");
