@@ -13,6 +13,11 @@ on:
         required: true
         type: boolean
         default: false
+      package-version-override:
+        description: "Package version override (optional, x.y.z)"
+        required: false
+        type: string
+        default: ""
 
 permissions: {}
 
@@ -26,11 +31,15 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - id: package
         run: |
-          if [[ ! "$GITHUB_REF" =~ ^refs/tags/v[0-9]+\.[0-9]+\.[0-9]+(-.+)?$ ]]; then
-            echo "Invalid tag format: $GITHUB_REF, must be in the form vMAJOR.MINOR.PATCH"
-            exit 1
+          if [[ -n "${{ github.event.inputs.package-version-override }}" ]]; then
+            PACKAGE_VERSION="${{ github.event.inputs.package-version-override }}"
+          else
+            if [[ ! "$GITHUB_REF" =~ ^refs/tags/v[0-9]+\.[0-9]+\.[0-9]+(-.+)?$ ]]; then
+              echo "Invalid tag format: $GITHUB_REF, must be in the form vMAJOR.MINOR.PATCH"
+              exit 1
+            fi
+            PACKAGE_VERSION="${GITHUB_REF#refs/tags/v}"
           fi
-          PACKAGE_VERSION="${GITHUB_REF#refs/tags/v}"
 
           echo "package-version=$PACKAGE_VERSION" >> "$GITHUB_OUTPUT"
       - id: serverlesscompatbinary
