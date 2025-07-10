@@ -5,11 +5,11 @@ namespace Datadog.Serverless.Compat.Tests.Logging;
 
 public class LoggerTests
 {
-    public static TheoryData<LogLevel, LogLevel, bool> LogLevels
+    public static TheoryData<int, int, bool> LogLevels
     {
         get
         {
-            var data = new TheoryData<LogLevel, LogLevel, bool>();
+            var data = new TheoryData<int, int, bool>();
             var logLevels = Enum.GetValues(typeof(LogLevel)).Cast<LogLevel>().ToList();
 
             foreach (var minimumLevel in logLevels)
@@ -22,7 +22,7 @@ public class LoggerTests
                         continue;
                     }
 
-                    data.Add(minimumLevel, checkLevel, checkLevel >= minimumLevel);
+                    data.Add((int)minimumLevel, (int)checkLevel, checkLevel >= minimumLevel);
                 }
             }
 
@@ -32,11 +32,11 @@ public class LoggerTests
 
     [Theory]
     [MemberData(nameof(LogLevels))]
-    public void IsEnabled_ReturnsCorrectValue(LogLevel minimumLevel, LogLevel checkLevel, bool expected)
+    public void IsEnabled_ReturnsCorrectValue(int minimumLevel, int checkLevel, bool expected)
     {
-        var logger = new Logger(TextWriter.Null, "TestSource", minimumLevel);
+        var logger = new Logger(TextWriter.Null, "TestSource", (LogLevel)minimumLevel);
 
-        Assert.Equal(expected, logger.IsEnabled(checkLevel));
+        Assert.Equal(expected, logger.IsEnabled((LogLevel)checkLevel));
     }
 
     [Fact]
