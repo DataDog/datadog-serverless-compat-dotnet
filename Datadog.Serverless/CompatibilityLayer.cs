@@ -167,7 +167,7 @@ public static class CompatibilityLayer
             Logger.LogDebug($"Detected OS: {os}");
             Logger.LogDebug($"Detected cloud environment: {environment}");
             Logger.LogDebug($"Package version: {packageVersion}");
-            Logger.LogDebug($"Executable path: {packageVersion}");
+            Logger.LogDebug($"Executable path: {executablePath}");
         }
 
         // validate each value and bail out if any are invalid
