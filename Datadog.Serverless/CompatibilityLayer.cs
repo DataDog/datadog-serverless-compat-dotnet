@@ -6,7 +6,7 @@
 using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.InteropServices;
-using Microsoft.Extensions.Logging;
+using Datadog.Serverless.Logging;
 
 namespace Datadog.Serverless;
 
@@ -14,7 +14,7 @@ public static class CompatibilityLayer
 {
     private static readonly ILogger Logger;
 
-    [DllImport("libc", SetLastError = true)]
+    [DllImport("libc", SetLastError = true, CharSet = CharSet.Ansi)]
     private static extern int chmod(string filePath, uint mode);
 
     static CompatibilityLayer()
@@ -23,18 +23,17 @@ public static class CompatibilityLayer
 
         var logLevel = logLevelEnv?.ToUpper() switch
         {
-            "OFF" => LogLevel.None,
+            "OFF" or "NONE" => LogLevel.None,
             "CRITICAL" => LogLevel.Critical,
             "ERROR" => LogLevel.Error,
             "WARN" => LogLevel.Warning,
-            "INFO" => LogLevel.Information,
+            "INFO" or "INFORMATION" => LogLevel.Information,
             "DEBUG" => LogLevel.Debug,
             "TRACE" => LogLevel.Trace,
-            _ => LogLevel.Information
+            _ => LogLevel.Information, // default
         };
 
-        var loggerFactory = LoggerFactory.Create(builder => { builder.AddConsole().SetMinimumLevel(logLevel); });
-        Logger = loggerFactory.CreateLogger("Datadog.Serverless");
+        Logger = new Logger(Console.Out, nameof(CompatibilityLayer), logLevel);
     }
 
     internal static CloudEnvironment GetEnvironment()
@@ -50,6 +49,15 @@ public static class CompatibilityLayer
 
     internal static OS GetOs()
     {
+#if NETFRAMEWORK
+        // RuntimeInformation was added in net471, but we target net461
+        if (Environment.OSVersion.Platform == PlatformID.Win32NT)
+        {
+            // this should always be true since .NET Framework only runs on Windows,
+            // but it doesn't hurt to check (hello Mono).
+            return OS.Windows;
+        }
+#else
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
             return OS.Windows;
@@ -60,6 +68,12 @@ public static class CompatibilityLayer
             return OS.Linux;
         }
 
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+        {
+            return OS.MacOS;
+        }
+#endif
+
         return OS.Unknown;
     }
 
@@ -69,14 +83,18 @@ public static class CompatibilityLayer
 
         if (!string.IsNullOrEmpty(executablePath))
         {
-            Logger.LogDebug("Detected user-configured executable path DD_SERVERLESS_COMPAT_PATH={executablePath}", executablePath);
+            Logger.LogDebug($"Detected user-configured executable path DD_SERVERLESS_COMPAT_PATH={executablePath}");
             return executablePath;
         }
 
-        return (environment, os) switch
+        return environment switch
         {
-            (CloudEnvironment.AzureFunction, OS.Windows) => @"C:\home\site\wwwroot\datadog\bin\windows-amd64\datadog-serverless-compat.exe",
-            (CloudEnvironment.AzureFunction, OS.Linux) => "/home/site/wwwroot/datadog/bin/linux-amd64/datadog-serverless-compat",
+            CloudEnvironment.AzureFunction => os switch
+            {
+                OS.Windows => @"C:\home\site\wwwroot\datadog\bin\windows-amd64\datadog-serverless-compat.exe",
+                OS.Linux => "/home/site/wwwroot/datadog/bin/linux-amd64/datadog-serverless-compat",
+                _ => string.Empty
+            },
             _ => string.Empty
         };
     }
@@ -107,12 +125,12 @@ public static class CompatibilityLayer
             Directory.CreateDirectory(tempDir);
             File.Copy(sourceFilename, destinationFilename, overwrite: true);
 
-            Logger.LogDebug("Copied executable from {Source} to {Destination}", sourceFilename, destinationFilename);
+            Logger.LogDebug($"Copied executable from {sourceFilename} to {destinationFilename}");
             return true;
         }
         catch (Exception e)
         {
-            Logger.LogError(e, "Failed to copy executable from {Source} to {Destination}", sourceFilename, destinationFilename);
+            Logger.LogError(e, $"Failed to copy executable from {sourceFilename} to {sourceFilename}");
             return false;
         }
     }
@@ -125,12 +143,12 @@ public static class CompatibilityLayer
 
             if (result == 0)
             {
-                Logger.LogDebug("Changed permissions to 0744 for {filePath}", filePath);
+                Logger.LogDebug($"Changed permissions to 0744 for {filePath}");
                 return true;
             }
 
             var errno = Marshal.GetLastWin32Error();
-            Logger.LogError("chmod failed with errno {Errno}", errno);
+            Logger.LogError($"chmod failed with errno {errno}");
         }
         catch (Exception e)
         {
@@ -142,25 +160,26 @@ public static class CompatibilityLayer
 
     public static void Start()
     {
+        // detect values
         var os = GetOs();
         var environment = GetEnvironment();
         var packageVersion = GetPackageVersion();
         var executablePath = GetExecutablePath(environment, os);
 
+        // log detected values
         if (Logger.IsEnabled(LogLevel.Debug))
         {
-            Logger.LogDebug("OS Description: {OSDescription}", RuntimeInformation.OSDescription.ToLower());
-            Logger.LogDebug("Detected OS: {OS}", os);
-            Logger.LogDebug("Detected cloud environment: {Environment}", environment);
-            Logger.LogDebug("Package version: {PackageVersion}", packageVersion);
-            Logger.LogDebug("Executable path: {ExecutablePath}", executablePath);
+            Logger.LogDebug($"Detected OS: {os}");
+            Logger.LogDebug($"Detected cloud environment: {environment}");
+            Logger.LogDebug($"Package version: {packageVersion}");
+            Logger.LogDebug($"Executable path: {executablePath}");
         }
 
-        if (os == OS.Unknown)
+        // validate each value and bail out if any are invalid
+        if (os is not (OS.Windows or OS.Linux))
         {
             Logger.LogError(
-                "The Datadog Serverless Compatibility Layer does not support the detected OS: {OS}.",
-                RuntimeInformation.OSDescription.ToLower());
+                $"The Datadog Serverless Compatibility Layer does not support the detected OS: {os}.");
 
             return;
         }
@@ -168,8 +187,7 @@ public static class CompatibilityLayer
         if (environment == CloudEnvironment.Unknown)
         {
             Logger.LogError(
-                "The Datadog Serverless Compatibility Layer does not support the detected cloud environment: {Environment}.",
-                environment);
+                $"The Datadog Serverless Compatibility Layer does not support the detected cloud environment: {environment}.");
 
             return;
         }
@@ -177,8 +195,7 @@ public static class CompatibilityLayer
         if (!File.Exists(executablePath))
         {
             Logger.LogError(
-                "The Datadog Serverless Compatibility Layer executable was not found at path {executablePath}",
-                executablePath);
+                $"The Datadog Serverless Compatibility Layer executable was not found at path {executablePath}");
 
             return;
         }
@@ -200,7 +217,7 @@ public static class CompatibilityLayer
             }
         }
 
-        Logger.LogDebug("Spawning process from executable at path {executablePath}", executablePath);
+        Logger.LogDebug($"Spawning process from executable at path {executablePath}");
 
         try
         {
@@ -208,7 +225,7 @@ public static class CompatibilityLayer
             {
                 FileName = executablePath,
                 UseShellExecute = false,
-                CreateNoWindow = true
+                CreateNoWindow = true,
             };
 
             startInfo.EnvironmentVariables["DD_SERVERLESS_COMPAT_VERSION"] = packageVersion;
@@ -218,7 +235,7 @@ public static class CompatibilityLayer
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Exception when starting {binaryPath}", executablePath);
+            Logger.LogError(ex, $"Exception when starting {executablePath}");
         }
     }
 }

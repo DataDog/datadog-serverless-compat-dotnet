@@ -5,4 +5,5 @@ internal enum OS
     Unknown,
     Windows,
     Linux,
+    MacOS,
 }
