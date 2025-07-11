@@ -1,6 +1,6 @@
 namespace Datadog.Serverless.Logging;
 
-public enum LogLevel
+internal enum LogLevel
 {
     Trace = 0,
     Debug = 1,
