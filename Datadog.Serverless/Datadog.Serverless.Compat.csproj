@@ -17,11 +17,14 @@
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
     <PackageTags>Datadog;APM;tracing;instrumentation;serverless</PackageTags>
     <PackageDescription>Datadog Serverless Compat library for .NET.</PackageDescription>
+    <PackageReleaseNotes>See release notes at https://github.com/DataDog/datadog-serverless-compat-dotnet/releases.</PackageReleaseNotes>
     <Copyright>Copyright 2025 Datadog, Inc.</Copyright>
     <Company>Datadog</Company>
     <Authors>Datadog</Authors>
     <Owners>Datadog</Owners>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <EmbedUntrackedSources>true</EmbedUntrackedSources>
   </PropertyGroup>
 
