@@ -91,7 +91,6 @@ jobs:
           dotnet-version: "9.0.x"
       - run: |
           dotnet nuget push Datadog.Serverless.Compat.${{ env.PACKAGE_VERSION }}.nupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json
-          dotnet nuget push Datadog.Serverless.Compat.${{ env.PACKAGE_VERSION }}.snupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json
   create-github-release:
     if: ${{ github.event.inputs.publish-github-release == 'true' }}
     runs-on: ubuntu-latest
