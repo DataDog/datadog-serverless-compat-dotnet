@@ -29,7 +29,7 @@
   </PropertyGroup>
 
   <!-- Use deterministic build in CI -->
-  <PropertyGroup Condition="'$(GITLAB_CI)' == 'true' Or '$(GITHUB_ACTION)' == 'true'">
+  <PropertyGroup Condition="'$(GITLAB_CI)' == 'true' Or '$(GITHUB_ACTIONS)' == 'true'">
     <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
   </PropertyGroup>
 
