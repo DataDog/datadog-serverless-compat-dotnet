@@ -18,6 +18,24 @@ internal sealed class Logger : ILogger
         return level >= _minimumLevel;
     }
 
+    internal static LogLevel GetLogLevelFromEnvironment()
+    {
+        var logLevelEnv = Environment.GetEnvironmentVariable("DD_LOG_LEVEL");
+
+        var logLevel = logLevelEnv?.ToUpper() switch
+        {
+            "OFF" or "NONE" => LogLevel.None,
+            "CRITICAL" => LogLevel.Critical,
+            "ERROR" => LogLevel.Error,
+            "WARN" => LogLevel.Warning,
+            "INFO" or "INFORMATION" => LogLevel.Information,
+            "DEBUG" => LogLevel.Debug,
+            "TRACE" => LogLevel.Trace,
+            _ => LogLevel.Information, // default
+        };
+        return logLevel;
+    }
+
     private void Log(LogLevel level, Exception? exception, string message)
     {
         if (!IsEnabled(level))
