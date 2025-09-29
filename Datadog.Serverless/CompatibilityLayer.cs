@@ -145,6 +145,11 @@ public static class CompatibilityLayer
         return false;
     }
 
+    internal static bool IsAzureFlexWithoutDDAzureResourceGroup()
+    {
+        return Environment.GetEnvironmentVariable("WEBSITE_SKU") == "FlexConsumption" && Environment.GetEnvironmentVariable("DD_AZURE_RESOURCE_GROUP") == null;
+    }
+
     public static void Start()
     {
         // detect values
@@ -177,6 +182,17 @@ public static class CompatibilityLayer
                 $"The Datadog Serverless Compatibility Layer does not support the detected cloud environment: {environment}.");
 
             return;
+        }
+
+        if (environment == CloudEnvironment.AzureFunction)
+        {
+            if (IsAzureFlexWithoutDDAzureResourceGroup())
+            {
+                Logger.LogError(
+                    "Azure function detected on flex consumption plan without DD_AZURE_RESOURCE_GROUP set. Please set the DD_AZURE_RESOURCE_GROUP environment variable to your resource group name in Azure app settings. Shutting down Datadog Serverless Compatibility Layer.");
+
+                return;
+            }
         }
 
         if (!File.Exists(executablePath))

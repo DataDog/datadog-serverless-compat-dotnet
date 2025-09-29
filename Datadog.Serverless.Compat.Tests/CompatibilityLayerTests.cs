@@ -95,4 +95,27 @@ public class CompatibilityLayerTests
         // Assert
         Assert.NotEqual("unknown", result);
     }
+
+    [Theory]
+    [InlineData("FlexConsumption", null, true)]
+    [InlineData("FlexConsumption", "test-rg", false)]
+    [InlineData("ElasticPremium", null, false)]
+    [InlineData("ElasticPremium", "test-rg", false)]
+    public void IsAzureFlexWithoutDDAzureResourceGroup_ShouldReturnCorrectValue(string websiteSku, string? ddAzureResourceGroup, bool expected)
+    {
+        // Arrange
+        Environment.SetEnvironmentVariable("WEBSITE_SKU", websiteSku);
+        Environment.SetEnvironmentVariable("DD_AZURE_RESOURCE_GROUP", ddAzureResourceGroup);
+
+        // Act
+        var result = CompatibilityLayer.IsAzureFlexWithoutDDAzureResourceGroup();
+
+        // Assert
+        Assert.Equal(expected, result);
+
+        // Cleanup
+        Environment.SetEnvironmentVariable("WEBSITE_SKU", null);
+        Environment.SetEnvironmentVariable("DD_AZURE_RESOURCE_GROUP", null);
+    }
 }
+
