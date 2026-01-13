@@ -1,8 +1,6 @@
 # Datadog Serverless Compatibility Layer for .NET
 ## `Datadog.Serverless.Compat`
 
-**Note: This is an unsupported pre-release package.**
-
 **Note: If your Azure Functions are running on an App Service plan (aka Dedicated plan) on Windows, use the [Datadog Azure App Services Site Extension](https://docs.datadoghq.com/serverless/azure_app_services/azure_app_services_windows/?tab=net) instead.**
 
 Add this package to your Azure Functions project to enable Datadog APM tracing and custom metric submission.
