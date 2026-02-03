@@ -191,8 +191,9 @@ public static class CompatibilityLayer
             "dd_dogstatsd");
 
         // Validate base pipe name length before appending GUID
-        // Max length: 256 - 1 (underscore) - 32 (GUID without hyphens) = 223
-        const int maxBaseLength = 223;
+        // Windows pipe path: \\.\pipe\{base}_{guid}
+        // Max total: 256 - 9 (\\.\pipe\) - 1 (underscore) - 32 (GUID) = 214
+        const int maxBaseLength = 214;
 
         if (tracePipeBase.Length > maxBaseLength)
         {
