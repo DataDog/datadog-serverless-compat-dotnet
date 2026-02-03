@@ -13,7 +13,6 @@ namespace Datadog.Serverless;
 
 public static class CompatibilityLayer
 {
-    private const string MutexName = "Global\\DatadogServerlessCompat";
     private static readonly ILogger Logger;
     private static Mutex? _mutex;
 
@@ -155,10 +154,15 @@ public static class CompatibilityLayer
 
     public static void Start()
     {
-        // Single-instance enforcement using named mutex
+        // Single-instance enforcement using named mutex scoped to this function app
+        // WEBSITE_SITE_NAME uniquely identifies the function app, preventing conflicts
+        // when multiple function apps share the same VM (Premium/Consumption plans)
+        var siteName = Environment.GetEnvironmentVariable("WEBSITE_SITE_NAME") ?? "default";
+        var mutexName = $"Global\\DatadogServerlessCompat_{siteName}";
+
         try
         {
-            _mutex = new Mutex(initiallyOwned: true, name: MutexName, createdNew: out bool createdNew);
+            _mutex = new Mutex(initiallyOwned: true, name: mutexName, createdNew: out bool createdNew);
 
             if (!createdNew)
             {
