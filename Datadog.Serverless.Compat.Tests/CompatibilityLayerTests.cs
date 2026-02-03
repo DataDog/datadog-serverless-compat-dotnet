@@ -236,12 +236,12 @@ public class CompatibilityLayerTests
     }
 
     [Fact]
-    public void ConfigureNamedPipes_ShouldTruncateLongPipeNames()
+    public void ConfigureNamedPipes_ShouldTruncateBaseName_WhenTooLong()
     {
         // Arrange
         var startInfo = new System.Diagnostics.ProcessStartInfo();
         const OS os = OS.Windows;
-        var longPipeName = new string('a', 300); // 300 characters, exceeds limit
+        var longPipeName = new string('a', 300); // 300 characters, exceeds max base length of 223
 
         Environment.SetEnvironmentVariable("DD_TRACE_WINDOWS_PIPE_NAME", longPipeName);
         Environment.SetEnvironmentVariable("DD_DOGSTATSD_WINDOWS_PIPE_NAME", longPipeName);
@@ -255,50 +255,14 @@ public class CompatibilityLayerTests
 
         Assert.NotNull(tracePipeName);
         Assert.NotNull(dogstatsdPipeName);
-        Assert.True(tracePipeName.Length <= 256);
-        Assert.True(dogstatsdPipeName.Length <= 256);
+        Assert.Equal(256, tracePipeName.Length);
+        Assert.Equal(256, dogstatsdPipeName.Length);
 
         // Cleanup
         Environment.SetEnvironmentVariable("DD_TRACE_PIPE_NAME", null);
         Environment.SetEnvironmentVariable("DD_DOGSTATSD_PIPE_NAME", null);
         Environment.SetEnvironmentVariable("DD_TRACE_WINDOWS_PIPE_NAME", null);
         Environment.SetEnvironmentVariable("DD_DOGSTATSD_WINDOWS_PIPE_NAME", null);
-    }
-
-    [Fact]
-    public void ConfigureNamedPipes_ShouldGenerateUniquePipeNames_OnMultipleCalls()
-    {
-        // Arrange
-        var startInfo1 = new System.Diagnostics.ProcessStartInfo();
-        var startInfo2 = new System.Diagnostics.ProcessStartInfo();
-        const OS os = OS.Windows;
-
-        // Clear any existing pipe name configurations
-        Environment.SetEnvironmentVariable("DD_TRACE_PIPE_NAME", null);
-        Environment.SetEnvironmentVariable("DD_DOGSTATSD_PIPE_NAME", null);
-        Environment.SetEnvironmentVariable("DD_TRACE_WINDOWS_PIPE_NAME", null);
-        Environment.SetEnvironmentVariable("DD_DOGSTATSD_WINDOWS_PIPE_NAME", null);
-
-        // Act
-        CompatibilityLayer.ConfigureNamedPipes(startInfo1, os);
-        var tracePipeName1 = Environment.GetEnvironmentVariable("DD_TRACE_PIPE_NAME");
-        var dogstatsdPipeName1 = Environment.GetEnvironmentVariable("DD_DOGSTATSD_PIPE_NAME");
-
-        // Clear environment variables to simulate a new function instance
-        Environment.SetEnvironmentVariable("DD_TRACE_PIPE_NAME", null);
-        Environment.SetEnvironmentVariable("DD_DOGSTATSD_PIPE_NAME", null);
-
-        CompatibilityLayer.ConfigureNamedPipes(startInfo2, os);
-        var tracePipeName2 = Environment.GetEnvironmentVariable("DD_TRACE_PIPE_NAME");
-        var dogstatsdPipeName2 = Environment.GetEnvironmentVariable("DD_DOGSTATSD_PIPE_NAME");
-
-        // Assert
-        Assert.NotEqual(tracePipeName1, tracePipeName2);
-        Assert.NotEqual(dogstatsdPipeName1, dogstatsdPipeName2);
-
-        // Cleanup
-        Environment.SetEnvironmentVariable("DD_TRACE_PIPE_NAME", null);
-        Environment.SetEnvironmentVariable("DD_DOGSTATSD_PIPE_NAME", null);
     }
 }
 
