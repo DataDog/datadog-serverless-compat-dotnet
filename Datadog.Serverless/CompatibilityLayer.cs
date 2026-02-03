@@ -6,6 +6,7 @@
 using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Threading;
 using Datadog.Serverless.Logging;
 
 namespace Datadog.Serverless;
@@ -13,6 +14,7 @@ namespace Datadog.Serverless;
 public static class CompatibilityLayer
 {
     private static readonly ILogger Logger;
+    private static Mutex? _mutex;
 
     [DllImport("libc", SetLastError = true, CharSet = CharSet.Ansi)]
     private static extern int chmod(string filePath, uint mode);
@@ -152,6 +154,30 @@ public static class CompatibilityLayer
 
     public static void Start()
     {
+        // Single-instance enforcement using named mutex scoped to this function app
+        // WEBSITE_SITE_NAME uniquely identifies the function app, preventing conflicts
+        // when multiple function apps share the same VM (Premium/Consumption plans)
+        var siteName = Environment.GetEnvironmentVariable("WEBSITE_SITE_NAME") ?? "default";
+        var mutexName = $"Global\\DatadogServerlessCompat_{siteName}";
+
+        try
+        {
+            _mutex = new Mutex(initiallyOwned: true, name: mutexName, createdNew: out bool createdNew);
+
+            if (!createdNew)
+            {
+                Logger.LogDebug("Another instance of the Datadog Serverless Compatibility Layer is already running. Skipping.");
+                _mutex.Dispose();
+                _mutex = null;
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to create mutex for single-instance check. Proceeding anyway.");
+            // Continue execution - better to risk duplicate than fail completely
+        }
+
         // detect values
         var os = GetOs();
         var environment = GetEnvironment();
