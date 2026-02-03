@@ -150,6 +150,92 @@ public static class CompatibilityLayer
         return Environment.GetEnvironmentVariable("WEBSITE_SKU") == "FlexConsumption" && Environment.GetEnvironmentVariable("DD_AZURE_RESOURCE_GROUP") == null;
     }
 
+    internal static void ConfigureNamedPipes(ProcessStartInfo startInfo, OS os)
+    {
+        // Only configure named pipes for Windows
+        if (os != OS.Windows)
+        {
+            return;
+        }
+
+        // Generate a unique GUID for this function instance to avoid conflicts
+        // when multiple Azure Functions run in the same namespace
+        var functionGuid = Guid.NewGuid().ToString("N"); // "N" format removes hyphens
+
+        // Check for existing configurations
+        var existingTraceWindowsPipeName = Environment.GetEnvironmentVariable("DD_TRACE_WINDOWS_PIPE_NAME");
+        var existingTracePipeName = Environment.GetEnvironmentVariable("DD_TRACE_PIPE_NAME");
+        var existingDogstatsdWindowsPipeName = Environment.GetEnvironmentVariable("DD_DOGSTATSD_WINDOWS_PIPE_NAME");
+        var existingDogstatsdPipeName = Environment.GetEnvironmentVariable("DD_DOGSTATSD_PIPE_NAME");
+
+        // Determine trace pipe name base
+        // Priority: DD_TRACE_WINDOWS_PIPE_NAME (rust binary) > DD_TRACE_PIPE_NAME (tracer) > default
+        string tracePipeBase;
+        if (!string.IsNullOrEmpty(existingTraceWindowsPipeName))
+        {
+            tracePipeBase = existingTraceWindowsPipeName;
+            if (!string.IsNullOrEmpty(existingTracePipeName) && existingTracePipeName != tracePipeBase)
+            {
+                Logger.LogWarning($"DD_TRACE_PIPE_NAME ('{existingTracePipeName}') differs from DD_TRACE_WINDOWS_PIPE_NAME ('{tracePipeBase}'). Using DD_TRACE_WINDOWS_PIPE_NAME.");
+            }
+        }
+        else if (!string.IsNullOrEmpty(existingTracePipeName))
+        {
+            tracePipeBase = existingTracePipeName;
+        }
+        else
+        {
+            tracePipeBase = "dd_trace";
+        }
+
+        // Determine dogstatsd pipe name base
+        // Priority: DD_DOGSTATSD_WINDOWS_PIPE_NAME (rust binary) > DD_DOGSTATSD_PIPE_NAME (dogstatsd) > default
+        string dogstatsdPipeBase;
+        if (!string.IsNullOrEmpty(existingDogstatsdWindowsPipeName))
+        {
+            dogstatsdPipeBase = existingDogstatsdWindowsPipeName;
+            if (!string.IsNullOrEmpty(existingDogstatsdPipeName) && existingDogstatsdPipeName != dogstatsdPipeBase)
+            {
+                Logger.LogWarning($"DD_DOGSTATSD_PIPE_NAME ('{existingDogstatsdPipeName}') differs from DD_DOGSTATSD_WINDOWS_PIPE_NAME ('{dogstatsdPipeBase}'). Using DD_DOGSTATSD_WINDOWS_PIPE_NAME.");
+            }
+        }
+        else if (!string.IsNullOrEmpty(existingDogstatsdPipeName))
+        {
+            dogstatsdPipeBase = existingDogstatsdPipeName;
+        }
+        else
+        {
+            dogstatsdPipeBase = "dd_dogstatsd";
+        }
+
+        // Always append GUID to ensure uniqueness across multiple function instances
+        var tracePipeName = $"{tracePipeBase}_{functionGuid}";
+        var dogstatsdPipeName = $"{dogstatsdPipeBase}_{functionGuid}";
+
+        // Ensure pipe names don't exceed Windows limit of 256 characters
+        if (tracePipeName.Length > 256)
+        {
+            Logger.LogWarning($"Trace pipe name exceeds 256 characters ({tracePipeName.Length}). Truncating.");
+            tracePipeName = tracePipeName.Substring(0, 256);
+        }
+
+        if (dogstatsdPipeName.Length > 256)
+        {
+            Logger.LogWarning($"DogStatsD pipe name exceeds 256 characters ({dogstatsdPipeName.Length}). Truncating.");
+            dogstatsdPipeName = dogstatsdPipeName.Substring(0, 256);
+        }
+
+        // Set environment variables for tracer and dogstatsd libraries (process-wide)
+        Environment.SetEnvironmentVariable("DD_TRACE_PIPE_NAME", tracePipeName);
+        Environment.SetEnvironmentVariable("DD_DOGSTATSD_PIPE_NAME", dogstatsdPipeName);
+
+        // Set environment variables for the spawned rust binary
+        startInfo.EnvironmentVariables["DD_TRACE_WINDOWS_PIPE_NAME"] = tracePipeName;
+        startInfo.EnvironmentVariables["DD_DOGSTATSD_WINDOWS_PIPE_NAME"] = dogstatsdPipeName;
+
+        Logger.LogDebug($"Configured named pipes - Trace: {tracePipeName}, DogStatsD: {dogstatsdPipeName}");
+    }
+
     public static void Start()
     {
         // detect values
@@ -229,6 +315,9 @@ public static class CompatibilityLayer
             };
 
             startInfo.EnvironmentVariables["DD_SERVERLESS_COMPAT_VERSION"] = packageVersion;
+
+            // Configure named pipes with unique names to avoid conflicts in multi-function scenarios
+            ConfigureNamedPipes(startInfo, os);
 
             var process = new Process { StartInfo = startInfo };
             process.Start();
