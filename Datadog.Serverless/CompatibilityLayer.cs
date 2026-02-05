@@ -167,28 +167,19 @@ public static class CompatibilityLayer
         return !string.IsNullOrEmpty(pipeName) ? pipeName : defaultName;
     }
 
-    internal static void ConfigureNamedPipes(ProcessStartInfo startInfo, OS os)
+    /// <summary>
+    /// Calculates the trace pipe name with a unique GUID suffix.
+    /// This method is instrumented by the Datadog tracer to override the return value.
+    /// When the tracer is present, it will return the tracer's pre-generated pipe name.
+    /// When no tracer is present, this method generates its own unique pipe name.
+    /// </summary>
+    /// <returns>The trace pipe name to use for communication with the agent</returns>
+    public static string CalculateTracePipeName()
     {
-        // Only configure named pipes for Windows
-        if (os != OS.Windows)
-        {
-            return;
-        }
-
-        // Generate a unique GUID for this function instance to avoid conflicts
-        // when multiple Azure Functions run in the same namespace
-        var functionGuid = Guid.NewGuid().ToString("N"); // "N" format removes hyphens
-
-        // Determine base pipe names (priority: WINDOWS_PIPE_NAME > PIPE_NAME > default)
         var tracePipeBase = DeterminePipeBaseName(
             "DD_TRACE_WINDOWS_PIPE_NAME",
             "DD_TRACE_PIPE_NAME",
             "dd_trace");
-
-        var dogstatsdPipeBase = DeterminePipeBaseName(
-            "DD_DOGSTATSD_WINDOWS_PIPE_NAME",
-            "DD_DOGSTATSD_PIPE_NAME",
-            "dd_dogstatsd");
 
         // Validate base pipe name length before appending GUID
         // Windows pipe path: \\.\pipe\{base}_{guid}
@@ -201,25 +192,62 @@ public static class CompatibilityLayer
             tracePipeBase = tracePipeBase.Substring(0, maxBaseLength);
         }
 
+        var guid = Guid.NewGuid().ToString("N");
+        var pipeName = $"{tracePipeBase}_{guid}";
+
+        Logger.LogDebug($"CompatibilityLayer calculated trace pipe name: {pipeName}");
+        return pipeName;
+    }
+
+    /// <summary>
+    /// Calculates the DogStatsD pipe name with a unique GUID suffix.
+    /// This method is instrumented by the Datadog tracer to override the return value.
+    /// When the tracer is present, it will return the tracer's pre-generated pipe name.
+    /// When no tracer is present, this method generates its own unique pipe name.
+    /// </summary>
+    /// <returns>The DogStatsD pipe name to use for communication with the agent</returns>
+    public static string CalculateDogStatsDPipeName()
+    {
+        var dogstatsdPipeBase = DeterminePipeBaseName(
+            "DD_DOGSTATSD_WINDOWS_PIPE_NAME",
+            "DD_DOGSTATSD_PIPE_NAME",
+            "dd_dogstatsd");
+
+        // Validate base pipe name length before appending GUID
+        const int maxBaseLength = 214;
+
         if (dogstatsdPipeBase.Length > maxBaseLength)
         {
             Logger.LogWarning($"DogStatsD pipe base name exceeds {maxBaseLength} characters ({dogstatsdPipeBase.Length}). Truncating to allow for GUID.");
             dogstatsdPipeBase = dogstatsdPipeBase.Substring(0, maxBaseLength);
         }
 
-        // Always append full GUID to ensure uniqueness across multiple function instances
-        var tracePipeName = $"{tracePipeBase}_{functionGuid}";
-        var dogstatsdPipeName = $"{dogstatsdPipeBase}_{functionGuid}";
+        var guid = Guid.NewGuid().ToString("N");
+        var pipeName = $"{dogstatsdPipeBase}_{guid}";
 
-        // Set environment variables for tracer and dogstatsd libraries (process-wide)
-        Environment.SetEnvironmentVariable("DD_TRACE_PIPE_NAME", tracePipeName);
-        Environment.SetEnvironmentVariable("DD_DOGSTATSD_PIPE_NAME", dogstatsdPipeName);
+        Logger.LogDebug($"CompatibilityLayer calculated DogStatsD pipe name: {pipeName}");
+        return pipeName;
+    }
+
+    internal static void ConfigureNamedPipes(ProcessStartInfo startInfo, OS os)
+    {
+        // Only configure named pipes for Windows
+        if (os != OS.Windows)
+        {
+            return;
+        }
+
+        // Call the public methods that can be instrumented by the tracer
+        // If tracer is present: instrumentation will override the return values
+        // If no tracer: methods will generate their own unique pipe names
+        var tracePipeName = CalculateTracePipeName();
+        var dogstatsdPipeName = CalculateDogStatsDPipeName();
 
         // Set environment variables for the spawned rust binary
         startInfo.EnvironmentVariables["DD_TRACE_WINDOWS_PIPE_NAME"] = tracePipeName;
         startInfo.EnvironmentVariables["DD_DOGSTATSD_WINDOWS_PIPE_NAME"] = dogstatsdPipeName;
 
-        Logger.LogDebug($"Configured named pipes - Trace: {tracePipeName}, DogStatsD: {dogstatsdPipeName}");
+        Logger.LogInformation($"Configured named pipes - Trace: {tracePipeName}, DogStatsD: {dogstatsdPipeName}");
     }
 
     public static void Start()
