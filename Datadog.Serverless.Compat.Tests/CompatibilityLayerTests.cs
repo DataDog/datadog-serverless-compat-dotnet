@@ -263,9 +263,9 @@ internal sealed class EnvironmentVariableScope : IDisposable
 
     public void Dispose()
     {
-        foreach (var (name, originalValue) in _originalValues)
+        foreach (var kvp in _originalValues)
         {
-            Environment.SetEnvironmentVariable(name, originalValue);
+            Environment.SetEnvironmentVariable(kvp.Key, kvp.Value);
         }
     }
 }

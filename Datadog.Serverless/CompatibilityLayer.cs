@@ -167,6 +167,26 @@ public static class CompatibilityLayer
         return !string.IsNullOrEmpty(pipeName) ? pipeName : defaultName;
     }
 
+    private static string CalculatePipeName(string windowsPipeNameKey, string pipeNameKey, string defaultName, string logContext)
+    {
+        var pipeBase = DeterminePipeBaseName(windowsPipeNameKey, pipeNameKey, defaultName);
+
+        // Windows pipe max: 256 chars - "\\.\pipe\" (9) - "_" (1) - GUID (32) = 214
+        const int maxBaseLength = 214;
+
+        if (pipeBase.Length > maxBaseLength)
+        {
+            Logger.LogWarning($"{logContext} pipe base name exceeds {maxBaseLength} characters ({pipeBase.Length}). Truncating to allow for GUID.");
+            pipeBase = pipeBase.Substring(0, maxBaseLength);
+        }
+
+        var guid = Guid.NewGuid().ToString("N");
+        var pipeName = $"{pipeBase}_{guid}";
+
+        Logger.LogDebug($"CompatibilityLayer calculated {logContext} pipe name: {pipeName}");
+        return pipeName;
+    }
+
     /// <summary>
     /// Calculates the trace pipe name with a unique GUID suffix.
     /// This method is instrumented by the Datadog tracer to override the return value.
@@ -176,27 +196,11 @@ public static class CompatibilityLayer
     /// <returns>The trace pipe name to use for communication with the agent</returns>
     public static string CalculateTracePipeName()
     {
-        var tracePipeBase = DeterminePipeBaseName(
+        return CalculatePipeName(
             "DD_TRACE_WINDOWS_PIPE_NAME",
             "DD_TRACE_PIPE_NAME",
-            "dd_trace");
-
-        // Validate base pipe name length before appending GUID
-        // Windows pipe path: \\.\pipe\{base}_{guid}
-        // Max total: 256 - 9 (\\.\pipe\) - 1 (underscore) - 32 (GUID) = 214
-        const int maxBaseLength = 214;
-
-        if (tracePipeBase.Length > maxBaseLength)
-        {
-            Logger.LogWarning($"Trace pipe base name exceeds {maxBaseLength} characters ({tracePipeBase.Length}). Truncating to allow for GUID.");
-            tracePipeBase = tracePipeBase.Substring(0, maxBaseLength);
-        }
-
-        var guid = Guid.NewGuid().ToString("N");
-        var pipeName = $"{tracePipeBase}_{guid}";
-
-        Logger.LogDebug($"CompatibilityLayer calculated trace pipe name: {pipeName}");
-        return pipeName;
+            "dd_trace",
+            "trace");
     }
 
     /// <summary>
@@ -208,25 +212,11 @@ public static class CompatibilityLayer
     /// <returns>The DogStatsD pipe name to use for communication with the agent</returns>
     public static string CalculateDogStatsDPipeName()
     {
-        var dogstatsdPipeBase = DeterminePipeBaseName(
+        return CalculatePipeName(
             "DD_DOGSTATSD_WINDOWS_PIPE_NAME",
             "DD_DOGSTATSD_PIPE_NAME",
-            "dd_dogstatsd");
-
-        // Validate base pipe name length before appending GUID
-        const int maxBaseLength = 214;
-
-        if (dogstatsdPipeBase.Length > maxBaseLength)
-        {
-            Logger.LogWarning($"DogStatsD pipe base name exceeds {maxBaseLength} characters ({dogstatsdPipeBase.Length}). Truncating to allow for GUID.");
-            dogstatsdPipeBase = dogstatsdPipeBase.Substring(0, maxBaseLength);
-        }
-
-        var guid = Guid.NewGuid().ToString("N");
-        var pipeName = $"{dogstatsdPipeBase}_{guid}";
-
-        Logger.LogDebug($"CompatibilityLayer calculated DogStatsD pipe name: {pipeName}");
-        return pipeName;
+            "dd_dogstatsd",
+            "DogStatsD");
     }
 
     internal static void ConfigureNamedPipes(ProcessStartInfo startInfo, OS os)
@@ -242,6 +232,13 @@ public static class CompatibilityLayer
         // If no tracer: methods will generate their own unique pipe names
         var tracePipeName = CalculateTracePipeName();
         var dogstatsdPipeName = CalculateDogStatsDPipeName();
+
+        // Ensure pipe names are not null before setting environment variables
+        if (tracePipeName == null || dogstatsdPipeName == null)
+        {
+            Logger.LogError("Failed to calculate pipe names. Trace and DogStatsD pipe names cannot be null.");
+            return;
+        }
 
         // Set environment variables for the spawned rust binary
         startInfo.EnvironmentVariables["DD_TRACE_WINDOWS_PIPE_NAME"] = tracePipeName;
