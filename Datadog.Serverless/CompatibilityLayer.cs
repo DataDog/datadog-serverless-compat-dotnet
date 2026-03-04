@@ -241,7 +241,7 @@ public static class CompatibilityLayer
         }
 
         // Set environment variables for the spawned rust binary
-        startInfo.EnvironmentVariables["DD_TRACE_WINDOWS_PIPE_NAME"] = tracePipeName;
+        startInfo.EnvironmentVariables["DD_APM_WINDOWS_PIPE_NAME"] = tracePipeName;
         startInfo.EnvironmentVariables["DD_DOGSTATSD_WINDOWS_PIPE_NAME"] = dogstatsdPipeName;
 
         Logger.LogInformation($"Configured named pipes - Trace: {tracePipeName}, DogStatsD: {dogstatsdPipeName}");

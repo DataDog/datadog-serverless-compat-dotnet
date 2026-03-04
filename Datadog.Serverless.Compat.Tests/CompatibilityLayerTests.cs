@@ -219,7 +219,7 @@ public class CompatibilityLayerTests
         CompatibilityLayer.ConfigureNamedPipes(startInfo, os);
 
         // Assert
-        var resultTracePipeName = startInfo.EnvironmentVariables["DD_TRACE_WINDOWS_PIPE_NAME"];
+        var resultTracePipeName = startInfo.EnvironmentVariables["DD_APM_WINDOWS_PIPE_NAME"];
         var resultDogstatsdPipeName = startInfo.EnvironmentVariables["DD_DOGSTATSD_WINDOWS_PIPE_NAME"];
 
         Assert.NotNull(resultTracePipeName);
