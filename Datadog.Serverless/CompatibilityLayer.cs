@@ -150,7 +150,7 @@ public static class CompatibilityLayer
         return Environment.GetEnvironmentVariable("WEBSITE_SKU") == "FlexConsumption" && Environment.GetEnvironmentVariable("DD_AZURE_RESOURCE_GROUP") == null;
     }
 
-    private static string DeterminePipeBaseName(string windowsPipeNameKey, string pipeNameKey, string defaultName)
+    private static string? DeterminePipeBaseName(string windowsPipeNameKey, string pipeNameKey, string? defaultName)
     {
         var windowsPipeName = Environment.GetEnvironmentVariable(windowsPipeNameKey);
         var pipeName = Environment.GetEnvironmentVariable(pipeNameKey);
@@ -164,12 +164,17 @@ public static class CompatibilityLayer
             return windowsPipeName;
         }
 
-        return !string.IsNullOrEmpty(pipeName) ? pipeName : defaultName;
+        if (!string.IsNullOrEmpty(pipeName))
+        {
+            return pipeName;
+        }
+
+        return defaultName;
     }
 
     private static string CalculatePipeName(string windowsPipeNameKey, string pipeNameKey, string defaultName, string logContext)
     {
-        var pipeBase = DeterminePipeBaseName(windowsPipeNameKey, pipeNameKey, defaultName);
+        var pipeBase = DeterminePipeBaseName(windowsPipeNameKey, pipeNameKey, defaultName)!;
 
         // Windows pipe max: 256 chars - "\\.\pipe\" (9) - "_" (1) - GUID (32) = 214
         const int maxBaseLength = 214;
@@ -196,6 +201,17 @@ public static class CompatibilityLayer
     /// <returns>The trace pipe name to use for communication with the agent</returns>
     public static string CalculateTracePipeName()
     {
+        var explicitName = DeterminePipeBaseName(
+            "DD_TRACE_WINDOWS_PIPE_NAME",
+            "DD_TRACE_PIPE_NAME",
+            defaultName: null);
+
+        if (explicitName != null)
+        {
+            Logger.LogDebug($"Using explicitly configured trace pipe name: {explicitName}");
+            return explicitName;
+        }
+
         return CalculatePipeName(
             "DD_TRACE_WINDOWS_PIPE_NAME",
             "DD_TRACE_PIPE_NAME",
@@ -212,6 +228,17 @@ public static class CompatibilityLayer
     /// <returns>The DogStatsD pipe name to use for communication with the agent</returns>
     public static string CalculateDogStatsDPipeName()
     {
+        var explicitName = DeterminePipeBaseName(
+            "DD_DOGSTATSD_WINDOWS_PIPE_NAME",
+            "DD_DOGSTATSD_PIPE_NAME",
+            defaultName: null);
+
+        if (explicitName != null)
+        {
+            Logger.LogDebug($"Using explicitly configured DogStatsD pipe name: {explicitName}");
+            return explicitName;
+        }
+
         return CalculatePipeName(
             "DD_DOGSTATSD_WINDOWS_PIPE_NAME",
             "DD_DOGSTATSD_PIPE_NAME",
