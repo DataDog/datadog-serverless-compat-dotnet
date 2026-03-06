@@ -271,6 +271,13 @@ public static class CompatibilityLayer
         startInfo.EnvironmentVariables["DD_APM_WINDOWS_PIPE_NAME"] = tracePipeName;
         startInfo.EnvironmentVariables["DD_DOGSTATSD_WINDOWS_PIPE_NAME"] = dogstatsdPipeName;
 
+        // Set pipe names in the current process so that in-process consumers
+        // (e.g. the DogStatsD client) can discover the pipe to connect to.
+        // This runs during the DOTNET_STARTUP_HOOKS phase, before user code
+        // calls DogStatsdService.Configure(), so the env vars will be visible.
+        Environment.SetEnvironmentVariable("DD_TRACE_PIPE_NAME", tracePipeName);
+        Environment.SetEnvironmentVariable("DD_DOGSTATSD_PIPE_NAME", dogstatsdPipeName);
+
         Logger.LogInformation($"Configured named pipes - Trace: {tracePipeName}, DogStatsD: {dogstatsdPipeName}");
     }
 

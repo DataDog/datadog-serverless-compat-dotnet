@@ -236,7 +236,7 @@ public class CompatibilityLayerTests
         // Act
         CompatibilityLayer.ConfigureNamedPipes(startInfo, OS.Windows);
 
-        // Assert
+        // Assert — spawned process env vars
         var resultTracePipeName = startInfo.EnvironmentVariables["DD_APM_WINDOWS_PIPE_NAME"];
         var resultDogstatsdPipeName = startInfo.EnvironmentVariables["DD_DOGSTATSD_WINDOWS_PIPE_NAME"];
 
@@ -244,6 +244,10 @@ public class CompatibilityLayerTests
         Assert.NotNull(resultDogstatsdPipeName);
         Assert.StartsWith("dd_trace_", resultTracePipeName);
         Assert.StartsWith("dd_dogstatsd_", resultDogstatsdPipeName);
+
+        // Assert — current process env vars match (for in-process consumers like DogStatsD client)
+        Assert.Equal(resultTracePipeName, Environment.GetEnvironmentVariable("DD_TRACE_PIPE_NAME"));
+        Assert.Equal(resultDogstatsdPipeName, Environment.GetEnvironmentVariable("DD_DOGSTATSD_PIPE_NAME"));
     }
 
     [Fact]
@@ -260,15 +264,22 @@ public class CompatibilityLayerTests
         // Act
         CompatibilityLayer.ConfigureNamedPipes(startInfo, OS.Windows);
 
-        // Assert
+        // Assert — spawned process env vars
         Assert.Equal("custom_trace", startInfo.EnvironmentVariables["DD_APM_WINDOWS_PIPE_NAME"]);
         Assert.Equal("custom_dogstatsd", startInfo.EnvironmentVariables["DD_DOGSTATSD_WINDOWS_PIPE_NAME"]);
+
+        // Assert — current process env vars match
+        Assert.Equal("custom_trace", Environment.GetEnvironmentVariable("DD_TRACE_PIPE_NAME"));
+        Assert.Equal("custom_dogstatsd", Environment.GetEnvironmentVariable("DD_DOGSTATSD_PIPE_NAME"));
     }
 
     [Fact]
     public void ConfigureNamedPipes_ShouldNotConfigurePipes_OnLinux()
     {
         // Arrange
+        using var _ = new EnvironmentVariableScope(
+            ("DD_TRACE_PIPE_NAME", null),
+            ("DD_DOGSTATSD_PIPE_NAME", null));
         var startInfo = new System.Diagnostics.ProcessStartInfo();
         const OS os = OS.Linux;
 
@@ -278,6 +289,8 @@ public class CompatibilityLayerTests
         // Assert
         Assert.False(startInfo.EnvironmentVariables.ContainsKey("DD_TRACE_WINDOWS_PIPE_NAME"));
         Assert.False(startInfo.EnvironmentVariables.ContainsKey("DD_DOGSTATSD_WINDOWS_PIPE_NAME"));
+        Assert.Null(Environment.GetEnvironmentVariable("DD_TRACE_PIPE_NAME"));
+        Assert.Null(Environment.GetEnvironmentVariable("DD_DOGSTATSD_PIPE_NAME"));
     }
 }
 
