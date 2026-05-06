@@ -150,7 +150,7 @@ public static class CompatibilityLayer
         return Environment.GetEnvironmentVariable("WEBSITE_SKU") == "FlexConsumption" && Environment.GetEnvironmentVariable("DD_AZURE_RESOURCE_GROUP") == null;
     }
 
-    private static string? DeterminePipeBaseName(string windowsPipeNameKey, string pipeNameKey, string? defaultName)
+    private static string? DeterminePipeBaseName(string windowsPipeNameKey, string pipeNameKey)
     {
         var windowsPipeName = Environment.GetEnvironmentVariable(windowsPipeNameKey);
         var pipeName = Environment.GetEnvironmentVariable(pipeNameKey);
@@ -169,27 +169,7 @@ public static class CompatibilityLayer
             return pipeName;
         }
 
-        return defaultName;
-    }
-
-    private static string CalculatePipeName(string windowsPipeNameKey, string pipeNameKey, string defaultName, string logContext)
-    {
-        var pipeBase = DeterminePipeBaseName(windowsPipeNameKey, pipeNameKey, defaultName)!;
-
-        // Windows pipe max: 256 chars - "\\.\pipe\" (9) - "_" (1) - GUID (32) = 214
-        const int maxBaseLength = 214;
-
-        if (pipeBase.Length > maxBaseLength)
-        {
-            Logger.LogWarning($"{logContext} pipe base name exceeds {maxBaseLength} characters ({pipeBase.Length}). Truncating to allow for GUID.");
-            pipeBase = pipeBase.Substring(0, maxBaseLength);
-        }
-
-        var guid = Guid.NewGuid().ToString("N");
-        var pipeName = $"{pipeBase}_{guid}";
-
-        Logger.LogDebug($"CompatibilityLayer calculated {logContext} pipe name: {pipeName}");
-        return pipeName;
+        return null;
     }
 
     /// <summary>
@@ -215,8 +195,7 @@ public static class CompatibilityLayer
     {
         var explicitName = DeterminePipeBaseName(
             "DD_TRACE_WINDOWS_PIPE_NAME",
-            "DD_TRACE_PIPE_NAME",
-            defaultName: null);
+            "DD_TRACE_PIPE_NAME");
 
         if (explicitName != null)
         {
@@ -224,11 +203,9 @@ public static class CompatibilityLayer
             return explicitName;
         }
 
-        return CalculatePipeName(
-            "DD_TRACE_WINDOWS_PIPE_NAME",
-            "DD_TRACE_PIPE_NAME",
-            "dd_trace",
-            "trace");
+        var pipeName = $"dd_trace_{Guid.NewGuid():N}";
+        Logger.LogDebug($"CompatibilityLayer calculated trace pipe name: {pipeName}");
+        return pipeName;
     }
 
     /// <summary>
@@ -254,8 +231,7 @@ public static class CompatibilityLayer
     {
         var explicitName = DeterminePipeBaseName(
             "DD_DOGSTATSD_WINDOWS_PIPE_NAME",
-            "DD_DOGSTATSD_PIPE_NAME",
-            defaultName: null);
+            "DD_DOGSTATSD_PIPE_NAME");
 
         if (explicitName != null)
         {
@@ -263,11 +239,9 @@ public static class CompatibilityLayer
             return explicitName;
         }
 
-        return CalculatePipeName(
-            "DD_DOGSTATSD_WINDOWS_PIPE_NAME",
-            "DD_DOGSTATSD_PIPE_NAME",
-            "dd_dogstatsd",
-            "DogStatsD");
+        var pipeName = $"dd_dogstatsd_{Guid.NewGuid():N}";
+        Logger.LogDebug($"CompatibilityLayer calculated DogStatsD pipe name: {pipeName}");
+        return pipeName;
     }
 
     internal static void ConfigureNamedPipes(ProcessStartInfo startInfo, OS os)
