@@ -194,9 +194,21 @@ public static class CompatibilityLayer
 
     /// <summary>
     /// Calculates the trace pipe name with a unique GUID suffix.
-    /// This method is instrumented by the Datadog tracer to override the return value.
-    /// When the tracer is present, it will return the tracer's pre-generated pipe name.
+    /// When the Datadog tracer is present, its calltarget instrumentation overrides the
+    /// return value with the tracer's pre-generated pipe name, so both sides use the same name.
     /// When no tracer is present, this method generates its own unique pipe name.
+    ///
+    /// *** INSTRUMENTATION CONTRACT — DO NOT RENAME OR CHANGE SIGNATURE ***
+    /// The dd-trace-dotnet tracer targets this exact symbol at runtime:
+    ///   Assembly  : Datadog.Serverless.Compat
+    ///   Type      : Datadog.Serverless.CompatibilityLayer
+    ///   Method    : CalculateTracePipeName
+    ///   Parameters: (none)
+    ///   Returns   : System.String
+    ///   Versions  : 0.0.0 – 1.*.*
+    /// Renaming, moving, or adding parameters silently disables the integration —
+    /// the native profiler skips unrecognised symbols without throwing.
+    /// A 2.x major bump also escapes the version range and requires a coordinated tracer update.
     /// </summary>
     /// <returns>The trace pipe name to use for communication with the agent</returns>
     public static string CalculateTracePipeName()
@@ -221,9 +233,21 @@ public static class CompatibilityLayer
 
     /// <summary>
     /// Calculates the DogStatsD pipe name with a unique GUID suffix.
-    /// This method is instrumented by the Datadog tracer to override the return value.
-    /// When the tracer is present, it will return the tracer's pre-generated pipe name.
+    /// When the Datadog tracer is present, its calltarget instrumentation overrides the
+    /// return value with the tracer's pre-generated pipe name, so both sides use the same name.
     /// When no tracer is present, this method generates its own unique pipe name.
+    ///
+    /// *** INSTRUMENTATION CONTRACT — DO NOT RENAME OR CHANGE SIGNATURE ***
+    /// The dd-trace-dotnet tracer targets this exact symbol at runtime:
+    ///   Assembly  : Datadog.Serverless.Compat
+    ///   Type      : Datadog.Serverless.CompatibilityLayer
+    ///   Method    : CalculateDogStatsDPipeName
+    ///   Parameters: (none)
+    ///   Returns   : System.String
+    ///   Versions  : 0.0.0 – 1.*.*
+    /// Renaming, moving, or adding parameters silently disables the integration —
+    /// the native profiler skips unrecognised symbols without throwing.
+    /// A 2.x major bump also escapes the version range and requires a coordinated tracer update.
     /// </summary>
     /// <returns>The DogStatsD pipe name to use for communication with the agent</returns>
     public static string CalculateDogStatsDPipeName()
@@ -260,22 +284,16 @@ public static class CompatibilityLayer
         var tracePipeName = CalculateTracePipeName();
         var dogstatsdPipeName = CalculateDogStatsDPipeName();
 
-        // Ensure pipe names are not null before setting environment variables
-        if (tracePipeName == null || dogstatsdPipeName == null)
-        {
-            Logger.LogError("Failed to calculate pipe names. Trace and DogStatsD pipe names cannot be null.");
-            return;
-        }
-
-        // Set environment variables for the spawned rust binary
+        // The trace pipe name flows tracer → DD_APM_WINDOWS_PIPE_NAME → mini-agent.
+        // The tracer reads its own ExporterSettings (already set before this hook fires)
+        // and the mini-agent reads DD_APM_WINDOWS_PIPE_NAME from its spawned-process env.
+        // There is no in-process consumer of DD_TRACE_PIPE_NAME at this stage.
         startInfo.EnvironmentVariables["DD_APM_WINDOWS_PIPE_NAME"] = tracePipeName;
         startInfo.EnvironmentVariables["DD_DOGSTATSD_WINDOWS_PIPE_NAME"] = dogstatsdPipeName;
 
-        // Set pipe names in the current process so that in-process consumers
-        // (e.g. the DogStatsD client) can discover the pipe to connect to.
-        // This runs during the DOTNET_STARTUP_HOOKS phase, before user code
-        // calls DogStatsdService.Configure(), so the env vars will be visible.
-        Environment.SetEnvironmentVariable("DD_TRACE_PIPE_NAME", tracePipeName);
+        // Expose the DogStatsD pipe name in the current process so the DogStatsD client SDK
+        // can discover it. DogStatsdService.Configure() is called lazily in user code after
+        // this hook runs, so the env var will be visible when it reads DD_DOGSTATSD_PIPE_NAME.
         Environment.SetEnvironmentVariable("DD_DOGSTATSD_PIPE_NAME", dogstatsdPipeName);
 
         Logger.LogInformation($"Configured named pipes - Trace: {tracePipeName}, DogStatsD: {dogstatsdPipeName}");

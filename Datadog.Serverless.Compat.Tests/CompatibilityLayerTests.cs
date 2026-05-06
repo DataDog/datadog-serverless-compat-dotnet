@@ -245,9 +245,11 @@ public class CompatibilityLayerTests
         Assert.StartsWith("dd_trace_", resultTracePipeName);
         Assert.StartsWith("dd_dogstatsd_", resultDogstatsdPipeName);
 
-        // Assert — current process env vars match (for in-process consumers like DogStatsD client)
-        Assert.Equal(resultTracePipeName, Environment.GetEnvironmentVariable("DD_TRACE_PIPE_NAME"));
+        // DD_DOGSTATSD_PIPE_NAME is set for the in-process DogStatsD client SDK.
+        // DD_TRACE_PIPE_NAME is intentionally NOT set — the tracer reads its own ExporterSettings,
+        // and the mini-agent gets the name via DD_APM_WINDOWS_PIPE_NAME in the spawned process env.
         Assert.Equal(resultDogstatsdPipeName, Environment.GetEnvironmentVariable("DD_DOGSTATSD_PIPE_NAME"));
+        Assert.Null(Environment.GetEnvironmentVariable("DD_TRACE_PIPE_NAME"));
     }
 
     [Fact]
@@ -268,9 +270,9 @@ public class CompatibilityLayerTests
         Assert.Equal("custom_trace", startInfo.EnvironmentVariables["DD_APM_WINDOWS_PIPE_NAME"]);
         Assert.Equal("custom_dogstatsd", startInfo.EnvironmentVariables["DD_DOGSTATSD_WINDOWS_PIPE_NAME"]);
 
-        // Assert — current process env vars match
-        Assert.Equal("custom_trace", Environment.GetEnvironmentVariable("DD_TRACE_PIPE_NAME"));
+        // Assert — only DogStatsD is set in the current process (for lazy client init)
         Assert.Equal("custom_dogstatsd", Environment.GetEnvironmentVariable("DD_DOGSTATSD_PIPE_NAME"));
+        Assert.Null(Environment.GetEnvironmentVariable("DD_TRACE_PIPE_NAME"));
     }
 
     [Fact]
@@ -291,6 +293,53 @@ public class CompatibilityLayerTests
         Assert.False(startInfo.EnvironmentVariables.ContainsKey("DD_DOGSTATSD_WINDOWS_PIPE_NAME"));
         Assert.Null(Environment.GetEnvironmentVariable("DD_TRACE_PIPE_NAME"));
         Assert.Null(Environment.GetEnvironmentVariable("DD_DOGSTATSD_PIPE_NAME"));
+    }
+
+    // -------------------------------------------------------------------------
+    // Instrumentation contract tests
+    //
+    // The dd-trace-dotnet tracer ships calltarget definitions that target
+    // CalculateTracePipeName and CalculateDogStatsDPipeName by exact symbol.
+    // Renaming either method, changing its parameters, or moving it to a
+    // different type/assembly silently disables the integration — the native
+    // profiler skips unrecognised symbols without throwing.
+    //
+    // These tests fail at compile time (via nameof) on a rename and at runtime
+    // on a signature or accessibility change, making the contract explicit.
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void InstrumentationContract_CalculateTracePipeName_SignatureIsStable()
+    {
+        var method = typeof(CompatibilityLayer).GetMethod(
+            nameof(CompatibilityLayer.CalculateTracePipeName),
+            System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static,
+            binder: null,
+            types: Type.EmptyTypes,
+            modifiers: null);
+
+        Assert.NotNull(method);
+        Assert.Equal(typeof(string), method!.ReturnType);
+        Assert.Empty(method.GetParameters());
+
+        // Assembly name and type name are part of the calltarget contract
+        Assert.Equal("Datadog.Serverless.Compat", typeof(CompatibilityLayer).Assembly.GetName().Name);
+        Assert.Equal("Datadog.Serverless.CompatibilityLayer", typeof(CompatibilityLayer).FullName);
+    }
+
+    [Fact]
+    public void InstrumentationContract_CalculateDogStatsDPipeName_SignatureIsStable()
+    {
+        var method = typeof(CompatibilityLayer).GetMethod(
+            nameof(CompatibilityLayer.CalculateDogStatsDPipeName),
+            System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static,
+            binder: null,
+            types: Type.EmptyTypes,
+            modifiers: null);
+
+        Assert.NotNull(method);
+        Assert.Equal(typeof(string), method!.ReturnType);
+        Assert.Empty(method.GetParameters());
     }
 }
 
