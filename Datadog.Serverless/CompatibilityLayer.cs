@@ -150,6 +150,129 @@ public static class CompatibilityLayer
         return Environment.GetEnvironmentVariable("WEBSITE_SKU") == "FlexConsumption" && Environment.GetEnvironmentVariable("DD_AZURE_RESOURCE_GROUP") == null;
     }
 
+    private static string? DeterminePipeBaseName(string windowsPipeNameKey, string pipeNameKey)
+    {
+        var windowsPipeName = Environment.GetEnvironmentVariable(windowsPipeNameKey);
+        var pipeName = Environment.GetEnvironmentVariable(pipeNameKey);
+
+        if (!string.IsNullOrEmpty(windowsPipeName))
+        {
+            if (!string.IsNullOrEmpty(pipeName) && pipeName != windowsPipeName)
+            {
+                Logger.LogWarning($"{pipeNameKey} ('{pipeName}') differs from {windowsPipeNameKey} ('{windowsPipeName}'). Using {windowsPipeNameKey}.");
+            }
+            return windowsPipeName;
+        }
+
+        if (!string.IsNullOrEmpty(pipeName))
+        {
+            return pipeName;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Calculates the trace pipe name with a unique GUID suffix.
+    /// When the Datadog tracer is present, its calltarget instrumentation overrides the
+    /// return value with the tracer's pre-generated pipe name, so both sides use the same name.
+    /// When no tracer is present, this method generates its own unique pipe name.
+    ///
+    /// *** INSTRUMENTATION CONTRACT — DO NOT RENAME OR CHANGE SIGNATURE ***
+    /// The dd-trace-dotnet tracer targets this exact symbol at runtime:
+    ///   Assembly  : Datadog.Serverless.Compat
+    ///   Type      : Datadog.Serverless.CompatibilityLayer
+    ///   Method    : CalculateTracePipeName
+    ///   Parameters: (none)
+    ///   Returns   : System.String
+    ///   Versions  : 0.0.0 – 1.*.*
+    /// Renaming, moving, or adding parameters silently disables the integration —
+    /// the native profiler skips unrecognised symbols without throwing.
+    /// A 2.x major bump also escapes the version range and requires a coordinated tracer update.
+    /// </summary>
+    /// <returns>The trace pipe name to use for communication with the agent</returns>
+    public static string CalculateTracePipeName()
+    {
+        var explicitName = DeterminePipeBaseName(
+            "DD_TRACE_WINDOWS_PIPE_NAME",
+            "DD_TRACE_PIPE_NAME");
+
+        if (explicitName != null)
+        {
+            Logger.LogDebug($"Using explicitly configured trace pipe name: {explicitName}");
+            return explicitName;
+        }
+
+        var pipeName = $"dd_trace_{Guid.NewGuid():N}";
+        Logger.LogDebug($"CompatibilityLayer calculated trace pipe name: {pipeName}");
+        return pipeName;
+    }
+
+    /// <summary>
+    /// Calculates the DogStatsD pipe name with a unique GUID suffix.
+    /// When the Datadog tracer is present, its calltarget instrumentation overrides the
+    /// return value with the tracer's pre-generated pipe name, so both sides use the same name.
+    /// When no tracer is present, this method generates its own unique pipe name.
+    ///
+    /// *** INSTRUMENTATION CONTRACT — DO NOT RENAME OR CHANGE SIGNATURE ***
+    /// The dd-trace-dotnet tracer targets this exact symbol at runtime:
+    ///   Assembly  : Datadog.Serverless.Compat
+    ///   Type      : Datadog.Serverless.CompatibilityLayer
+    ///   Method    : CalculateDogStatsDPipeName
+    ///   Parameters: (none)
+    ///   Returns   : System.String
+    ///   Versions  : 0.0.0 – 1.*.*
+    /// Renaming, moving, or adding parameters silently disables the integration —
+    /// the native profiler skips unrecognised symbols without throwing.
+    /// A 2.x major bump also escapes the version range and requires a coordinated tracer update.
+    /// </summary>
+    /// <returns>The DogStatsD pipe name to use for communication with the agent</returns>
+    public static string CalculateDogStatsDPipeName()
+    {
+        var explicitName = DeterminePipeBaseName(
+            "DD_DOGSTATSD_WINDOWS_PIPE_NAME",
+            "DD_DOGSTATSD_PIPE_NAME");
+
+        if (explicitName != null)
+        {
+            Logger.LogDebug($"Using explicitly configured DogStatsD pipe name: {explicitName}");
+            return explicitName;
+        }
+
+        var pipeName = $"dd_dogstatsd_{Guid.NewGuid():N}";
+        Logger.LogDebug($"CompatibilityLayer calculated DogStatsD pipe name: {pipeName}");
+        return pipeName;
+    }
+
+    internal static void ConfigureNamedPipes(ProcessStartInfo startInfo, OS os)
+    {
+        // Only configure named pipes for Windows
+        if (os != OS.Windows)
+        {
+            return;
+        }
+
+        // Call the public methods that can be instrumented by the tracer
+        // If tracer is present: instrumentation will override the return values
+        // If no tracer: methods will generate their own unique pipe names
+        var tracePipeName = CalculateTracePipeName();
+        var dogstatsdPipeName = CalculateDogStatsDPipeName();
+
+        // The trace pipe name flows tracer → DD_APM_WINDOWS_PIPE_NAME → mini-agent.
+        // The tracer reads its own ExporterSettings (already set before this hook fires)
+        // and the mini-agent reads DD_APM_WINDOWS_PIPE_NAME from its spawned-process env.
+        // There is no in-process consumer of DD_TRACE_PIPE_NAME at this stage.
+        startInfo.EnvironmentVariables["DD_APM_WINDOWS_PIPE_NAME"] = tracePipeName;
+        startInfo.EnvironmentVariables["DD_DOGSTATSD_WINDOWS_PIPE_NAME"] = dogstatsdPipeName;
+
+        // Expose the DogStatsD pipe name in the current process so the DogStatsD client SDK
+        // can discover it. DogStatsdService.Configure() is called lazily in user code after
+        // this hook runs, so the env var will be visible when it reads DD_DOGSTATSD_PIPE_NAME.
+        Environment.SetEnvironmentVariable("DD_DOGSTATSD_PIPE_NAME", dogstatsdPipeName);
+
+        Logger.LogInformation($"Configured named pipes - Trace: {tracePipeName}, DogStatsD: {dogstatsdPipeName}");
+    }
+
     public static void Start()
     {
         // detect values
@@ -229,6 +352,9 @@ public static class CompatibilityLayer
             };
 
             startInfo.EnvironmentVariables["DD_SERVERLESS_COMPAT_VERSION"] = packageVersion;
+
+            // Configure named pipes with unique names to avoid conflicts in multi-function scenarios
+            ConfigureNamedPipes(startInfo, os);
 
             var process = new Process { StartInfo = startInfo };
             process.Start();

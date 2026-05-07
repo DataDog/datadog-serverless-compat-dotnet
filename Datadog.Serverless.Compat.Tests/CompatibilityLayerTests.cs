@@ -3,24 +3,25 @@ using Xunit;
 
 namespace Datadog.Serverless.Compat.Tests;
 
+/// <summary>
+/// Tests that modify environment variables must not run in parallel to avoid test pollution.
+/// </summary>
+[Collection(nameof(EnvironmentVariablesTestCollection))]
 public class CompatibilityLayerTests
 {
     [Fact]
     public void GetEnvironment_ShouldReturnAzureFunction_WhenAzureEnvironmentVariablesAreSet()
     {
         // Arrange
-        Environment.SetEnvironmentVariable("FUNCTIONS_EXTENSION_VERSION", "some_version");
-        Environment.SetEnvironmentVariable("FUNCTIONS_WORKER_RUNTIME", "some_runtime");
+        using var _ = new EnvironmentVariableScope(
+            ("FUNCTIONS_EXTENSION_VERSION", "some_version"),
+            ("FUNCTIONS_WORKER_RUNTIME", "some_runtime"));
 
         // Act
         var result = CompatibilityLayer.GetEnvironment();
 
         // Assert
         Assert.Equal(CloudEnvironment.AzureFunction, result);
-
-        // Cleanup
-        Environment.SetEnvironmentVariable("FUNCTIONS_EXTENSION_VERSION", null);
-        Environment.SetEnvironmentVariable("FUNCTIONS_WORKER_RUNTIME", null);
     }
 
     [Fact]
@@ -104,18 +105,276 @@ public class CompatibilityLayerTests
     public void IsAzureFlexWithoutDDAzureResourceGroup_ShouldReturnCorrectValue(string websiteSku, string? ddAzureResourceGroup, bool expected)
     {
         // Arrange
-        Environment.SetEnvironmentVariable("WEBSITE_SKU", websiteSku);
-        Environment.SetEnvironmentVariable("DD_AZURE_RESOURCE_GROUP", ddAzureResourceGroup);
+        using var _ = new EnvironmentVariableScope(
+            ("WEBSITE_SKU", websiteSku),
+            ("DD_AZURE_RESOURCE_GROUP", ddAzureResourceGroup));
 
         // Act
         var result = CompatibilityLayer.IsAzureFlexWithoutDDAzureResourceGroup();
 
         // Assert
         Assert.Equal(expected, result);
-
-        // Cleanup
-        Environment.SetEnvironmentVariable("WEBSITE_SKU", null);
-        Environment.SetEnvironmentVariable("DD_AZURE_RESOURCE_GROUP", null);
     }
+
+    [Fact]
+    public void CalculateTracePipeName_ShouldGenerateUniqueName_WhenNoEnvVarSet()
+    {
+        // Arrange
+        using var _ = new EnvironmentVariableScope(
+            ("DD_TRACE_WINDOWS_PIPE_NAME", null),
+            ("DD_TRACE_PIPE_NAME", null));
+
+        // Act
+        var pipeName1 = CompatibilityLayer.CalculateTracePipeName();
+        var pipeName2 = CompatibilityLayer.CalculateTracePipeName();
+
+        // Assert
+        Assert.StartsWith("dd_trace_", pipeName1);
+        Assert.StartsWith("dd_trace_", pipeName2);
+        Assert.NotEqual(pipeName1, pipeName2);
+        Assert.Equal("dd_trace_".Length + 32, pipeName1.Length);
+    }
+
+    [Theory]
+    [InlineData("DD_TRACE_WINDOWS_PIPE_NAME", "custom_trace")]
+    [InlineData("DD_TRACE_PIPE_NAME", "custom_trace")]
+    public void CalculateTracePipeName_ShouldReturnExactName_WhenEnvVarSet(string envVarName, string envVarValue)
+    {
+        // Arrange
+        using var _ = new EnvironmentVariableScope(
+            ("DD_TRACE_WINDOWS_PIPE_NAME", null),
+            ("DD_TRACE_PIPE_NAME", null),
+            (envVarName, envVarValue));
+
+        // Act
+        var pipeName = CompatibilityLayer.CalculateTracePipeName();
+
+        // Assert — no GUID suffix when explicitly configured
+        Assert.Equal("custom_trace", pipeName);
+    }
+
+    [Fact]
+    public void CalculateDogStatsDPipeName_ShouldGenerateUniqueName_WhenNoEnvVarSet()
+    {
+        // Arrange
+        using var _ = new EnvironmentVariableScope(
+            ("DD_DOGSTATSD_WINDOWS_PIPE_NAME", null),
+            ("DD_DOGSTATSD_PIPE_NAME", null));
+
+        // Act
+        var pipeName1 = CompatibilityLayer.CalculateDogStatsDPipeName();
+        var pipeName2 = CompatibilityLayer.CalculateDogStatsDPipeName();
+
+        // Assert
+        Assert.StartsWith("dd_dogstatsd_", pipeName1);
+        Assert.StartsWith("dd_dogstatsd_", pipeName2);
+        Assert.NotEqual(pipeName1, pipeName2);
+        Assert.Equal("dd_dogstatsd_".Length + 32, pipeName1.Length);
+    }
+
+    [Theory]
+    [InlineData("DD_DOGSTATSD_WINDOWS_PIPE_NAME", "custom_dogstatsd")]
+    [InlineData("DD_DOGSTATSD_PIPE_NAME", "custom_dogstatsd")]
+    public void CalculateDogStatsDPipeName_ShouldReturnExactName_WhenEnvVarSet(string envVarName, string envVarValue)
+    {
+        // Arrange
+        using var _ = new EnvironmentVariableScope(
+            ("DD_DOGSTATSD_WINDOWS_PIPE_NAME", null),
+            ("DD_DOGSTATSD_PIPE_NAME", null),
+            (envVarName, envVarValue));
+
+        // Act
+        var pipeName = CompatibilityLayer.CalculateDogStatsDPipeName();
+
+        // Assert — no GUID suffix when explicitly configured
+        Assert.Equal("custom_dogstatsd", pipeName);
+    }
+
+    [Fact]
+    public void CalculateTracePipeName_ShouldReturnExactName_EvenWhenLong()
+    {
+        // Arrange — explicit pipe names are returned as-is (no GUID, no truncation)
+        var longPipeName = new string('a', 300);
+        using var _ = new EnvironmentVariableScope(
+            ("DD_TRACE_WINDOWS_PIPE_NAME", longPipeName),
+            ("DD_TRACE_PIPE_NAME", null));
+
+        // Act
+        var pipeName = CompatibilityLayer.CalculateTracePipeName();
+
+        // Assert
+        Assert.Equal(longPipeName, pipeName);
+    }
+
+    [Fact]
+    public void CalculateDogStatsDPipeName_ShouldReturnExactName_EvenWhenLong()
+    {
+        // Arrange — explicit pipe names are returned as-is (no GUID, no truncation)
+        var longPipeName = new string('a', 300);
+        using var _ = new EnvironmentVariableScope(
+            ("DD_DOGSTATSD_WINDOWS_PIPE_NAME", longPipeName),
+            ("DD_DOGSTATSD_PIPE_NAME", null));
+
+        // Act
+        var pipeName = CompatibilityLayer.CalculateDogStatsDPipeName();
+
+        // Assert
+        Assert.Equal(longPipeName, pipeName);
+    }
+
+    [Fact]
+    public void ConfigureNamedPipes_ShouldGenerateGuidSuffixedNames_WhenNoEnvVarsSet()
+    {
+        // Arrange
+        using var _ = new EnvironmentVariableScope(
+            ("DD_TRACE_WINDOWS_PIPE_NAME", null),
+            ("DD_TRACE_PIPE_NAME", null),
+            ("DD_DOGSTATSD_WINDOWS_PIPE_NAME", null),
+            ("DD_DOGSTATSD_PIPE_NAME", null));
+        var startInfo = new System.Diagnostics.ProcessStartInfo();
+
+        // Act
+        CompatibilityLayer.ConfigureNamedPipes(startInfo, OS.Windows);
+
+        // Assert — spawned process env vars
+        var resultTracePipeName = startInfo.EnvironmentVariables["DD_APM_WINDOWS_PIPE_NAME"];
+        var resultDogstatsdPipeName = startInfo.EnvironmentVariables["DD_DOGSTATSD_WINDOWS_PIPE_NAME"];
+
+        Assert.NotNull(resultTracePipeName);
+        Assert.NotNull(resultDogstatsdPipeName);
+        Assert.StartsWith("dd_trace_", resultTracePipeName);
+        Assert.StartsWith("dd_dogstatsd_", resultDogstatsdPipeName);
+
+        // DD_DOGSTATSD_PIPE_NAME is set for the in-process DogStatsD client SDK.
+        // DD_TRACE_PIPE_NAME is intentionally NOT set — the tracer reads its own ExporterSettings,
+        // and the mini-agent gets the name via DD_APM_WINDOWS_PIPE_NAME in the spawned process env.
+        Assert.Equal(resultDogstatsdPipeName, Environment.GetEnvironmentVariable("DD_DOGSTATSD_PIPE_NAME"));
+        Assert.Null(Environment.GetEnvironmentVariable("DD_TRACE_PIPE_NAME"));
+    }
+
+    [Fact]
+    public void ConfigureNamedPipes_ShouldUseExactNames_WhenEnvVarsSet()
+    {
+        // Arrange
+        using var _ = new EnvironmentVariableScope(
+            ("DD_TRACE_WINDOWS_PIPE_NAME", "custom_trace"),
+            ("DD_TRACE_PIPE_NAME", null),
+            ("DD_DOGSTATSD_WINDOWS_PIPE_NAME", "custom_dogstatsd"),
+            ("DD_DOGSTATSD_PIPE_NAME", null));
+        var startInfo = new System.Diagnostics.ProcessStartInfo();
+
+        // Act
+        CompatibilityLayer.ConfigureNamedPipes(startInfo, OS.Windows);
+
+        // Assert — spawned process env vars
+        Assert.Equal("custom_trace", startInfo.EnvironmentVariables["DD_APM_WINDOWS_PIPE_NAME"]);
+        Assert.Equal("custom_dogstatsd", startInfo.EnvironmentVariables["DD_DOGSTATSD_WINDOWS_PIPE_NAME"]);
+
+        // Assert — only DogStatsD is set in the current process (for lazy client init)
+        Assert.Equal("custom_dogstatsd", Environment.GetEnvironmentVariable("DD_DOGSTATSD_PIPE_NAME"));
+        Assert.Null(Environment.GetEnvironmentVariable("DD_TRACE_PIPE_NAME"));
+    }
+
+    [Fact]
+    public void ConfigureNamedPipes_ShouldNotConfigurePipes_OnLinux()
+    {
+        // Arrange
+        using var _ = new EnvironmentVariableScope(
+            ("DD_TRACE_PIPE_NAME", null),
+            ("DD_DOGSTATSD_PIPE_NAME", null));
+        var startInfo = new System.Diagnostics.ProcessStartInfo();
+        const OS os = OS.Linux;
+
+        // Act
+        CompatibilityLayer.ConfigureNamedPipes(startInfo, os);
+
+        // Assert
+        Assert.False(startInfo.EnvironmentVariables.ContainsKey("DD_TRACE_WINDOWS_PIPE_NAME"));
+        Assert.False(startInfo.EnvironmentVariables.ContainsKey("DD_DOGSTATSD_WINDOWS_PIPE_NAME"));
+        Assert.Null(Environment.GetEnvironmentVariable("DD_TRACE_PIPE_NAME"));
+        Assert.Null(Environment.GetEnvironmentVariable("DD_DOGSTATSD_PIPE_NAME"));
+    }
+
+    // -------------------------------------------------------------------------
+    // Instrumentation contract tests
+    //
+    // The dd-trace-dotnet tracer ships calltarget definitions that target
+    // CalculateTracePipeName and CalculateDogStatsDPipeName by exact symbol.
+    // Renaming either method, changing its parameters, or moving it to a
+    // different type/assembly silently disables the integration — the native
+    // profiler skips unrecognised symbols without throwing.
+    //
+    // These tests fail at compile time (via nameof) on a rename and at runtime
+    // on a signature or accessibility change, making the contract explicit.
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void InstrumentationContract_CalculateTracePipeName_SignatureIsStable()
+    {
+        var method = typeof(CompatibilityLayer).GetMethod(
+            nameof(CompatibilityLayer.CalculateTracePipeName),
+            System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static,
+            binder: null,
+            types: Type.EmptyTypes,
+            modifiers: null);
+
+        Assert.NotNull(method);
+        Assert.Equal(typeof(string), method!.ReturnType);
+        Assert.Empty(method.GetParameters());
+
+        // Assembly name and type name are part of the calltarget contract
+        Assert.Equal("Datadog.Serverless.Compat", typeof(CompatibilityLayer).Assembly.GetName().Name);
+        Assert.Equal("Datadog.Serverless.CompatibilityLayer", typeof(CompatibilityLayer).FullName);
+    }
+
+    [Fact]
+    public void InstrumentationContract_CalculateDogStatsDPipeName_SignatureIsStable()
+    {
+        var method = typeof(CompatibilityLayer).GetMethod(
+            nameof(CompatibilityLayer.CalculateDogStatsDPipeName),
+            System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static,
+            binder: null,
+            types: Type.EmptyTypes,
+            modifiers: null);
+
+        Assert.NotNull(method);
+        Assert.Equal(typeof(string), method!.ReturnType);
+        Assert.Empty(method.GetParameters());
+    }
+}
+
+/// <summary>
+/// Helper class to temporarily set environment variables and automatically restore them on disposal.
+/// Ensures proper cleanup even if tests fail, preventing test pollution.
+/// </summary>
+internal sealed class EnvironmentVariableScope : IDisposable
+{
+    private readonly Dictionary<string, string?> _originalValues = new();
+
+    public EnvironmentVariableScope(params (string name, string? value)[] variables)
+    {
+        foreach (var (name, value) in variables)
+        {
+            _originalValues[name] = Environment.GetEnvironmentVariable(name);
+            Environment.SetEnvironmentVariable(name, value);
+        }
+    }
+
+    public void Dispose()
+    {
+        foreach (var kvp in _originalValues)
+        {
+            Environment.SetEnvironmentVariable(kvp.Key, kvp.Value);
+        }
+    }
+}
+
+/// <summary>
+/// Used to indicate tests that modify environment variables.
+/// Tests in this collection will not run in parallel to prevent cross-test pollution.
+/// </summary>
+[CollectionDefinition(nameof(EnvironmentVariablesTestCollection), DisableParallelization = true)]
+public class EnvironmentVariablesTestCollection
+{
 }
 
