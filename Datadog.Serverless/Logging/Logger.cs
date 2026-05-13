@@ -18,9 +18,9 @@ internal sealed class Logger : ILogger
         return level >= _minimumLevel;
     }
 
-    internal static LogLevel GetLogLevelFromEnvironment()
+    internal static LogLevel GetLogLevelFromEnvironment(IEnvironmentVariableProvider envVars)
     {
-        var logLevelEnv = Environment.GetEnvironmentVariable("DD_LOG_LEVEL");
+        var logLevelEnv = envVars.GetEnvironmentVariable("DD_LOG_LEVEL");
 
         var logLevel = logLevelEnv?.ToUpper() switch
         {
