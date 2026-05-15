@@ -14,7 +14,7 @@ internal static class StartupHook
 
         try
         {
-            var logLevel = Logger.GetLogLevelFromEnvironment();
+            var logLevel = Logger.GetLogLevelFromEnvironment(new EnvironmentVariableProvider());
             logger = new Logger(Console.Out, nameof(StartupHook), logLevel);
             logger.LogInformation("Starting the Datadog Serverless Compatibility Layer.");
 

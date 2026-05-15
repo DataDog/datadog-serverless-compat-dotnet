@@ -19,14 +19,14 @@ public static class CompatibilityLayer
 
     static CompatibilityLayer()
     {
-        var logLevel = Logging.Logger.GetLogLevelFromEnvironment();
+        var logLevel = Logging.Logger.GetLogLevelFromEnvironment(new EnvironmentVariableProvider());
         Logger = new Logger(Console.Out, nameof(CompatibilityLayer), logLevel);
     }
 
-    internal static CloudEnvironment GetEnvironment()
+    internal static CloudEnvironment GetEnvironment(IEnvironmentVariableProvider envVars)
     {
-        if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("FUNCTIONS_EXTENSION_VERSION")) &&
-            !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("FUNCTIONS_WORKER_RUNTIME")))
+        if (!string.IsNullOrEmpty(envVars.GetEnvironmentVariable("FUNCTIONS_EXTENSION_VERSION")) &&
+            !string.IsNullOrEmpty(envVars.GetEnvironmentVariable("FUNCTIONS_WORKER_RUNTIME")))
         {
             return CloudEnvironment.AzureFunction;
         }
@@ -64,9 +64,9 @@ public static class CompatibilityLayer
         return OS.Unknown;
     }
 
-    internal static string GetExecutablePath(CloudEnvironment environment, OS os)
+    internal static string GetExecutablePath(CloudEnvironment environment, OS os, IEnvironmentVariableProvider envVars)
     {
-        var executablePath = Environment.GetEnvironmentVariable("DD_SERVERLESS_COMPAT_PATH");
+        var executablePath = envVars.GetEnvironmentVariable("DD_SERVERLESS_COMPAT_PATH");
 
         if (!string.IsNullOrEmpty(executablePath))
         {
@@ -145,15 +145,15 @@ public static class CompatibilityLayer
         return false;
     }
 
-    internal static bool IsAzureFlexWithoutDDAzureResourceGroup()
+    internal static bool IsAzureFlexWithoutDDAzureResourceGroup(IEnvironmentVariableProvider envVars)
     {
-        return Environment.GetEnvironmentVariable("WEBSITE_SKU") == "FlexConsumption" && Environment.GetEnvironmentVariable("DD_AZURE_RESOURCE_GROUP") == null;
+        return envVars.GetEnvironmentVariable("WEBSITE_SKU") == "FlexConsumption" && envVars.GetEnvironmentVariable("DD_AZURE_RESOURCE_GROUP") == null;
     }
 
-    private static string? DeterminePipeBaseName(string windowsPipeNameKey, string pipeNameKey)
+    private static string? DeterminePipeBaseName(string windowsPipeNameKey, string pipeNameKey, IEnvironmentVariableProvider envVars)
     {
-        var windowsPipeName = Environment.GetEnvironmentVariable(windowsPipeNameKey);
-        var pipeName = Environment.GetEnvironmentVariable(pipeNameKey);
+        var windowsPipeName = envVars.GetEnvironmentVariable(windowsPipeNameKey);
+        var pipeName = envVars.GetEnvironmentVariable(pipeNameKey);
 
         if (!string.IsNullOrEmpty(windowsPipeName))
         {
@@ -192,10 +192,14 @@ public static class CompatibilityLayer
     /// </summary>
     /// <returns>The trace pipe name to use for communication with the agent</returns>
     public static string CalculateTracePipeName()
+        => CalculateTracePipeName(new EnvironmentVariableProvider());
+
+    internal static string CalculateTracePipeName(IEnvironmentVariableProvider envVars)
     {
         var explicitName = DeterminePipeBaseName(
             "DD_TRACE_WINDOWS_PIPE_NAME",
-            "DD_TRACE_PIPE_NAME");
+            "DD_TRACE_PIPE_NAME",
+            envVars);
 
         if (explicitName != null)
         {
@@ -228,10 +232,14 @@ public static class CompatibilityLayer
     /// </summary>
     /// <returns>The DogStatsD pipe name to use for communication with the agent</returns>
     public static string CalculateDogStatsDPipeName()
+        => CalculateDogStatsDPipeName(new EnvironmentVariableProvider());
+
+    internal static string CalculateDogStatsDPipeName(IEnvironmentVariableProvider envVars)
     {
         var explicitName = DeterminePipeBaseName(
             "DD_DOGSTATSD_WINDOWS_PIPE_NAME",
-            "DD_DOGSTATSD_PIPE_NAME");
+            "DD_DOGSTATSD_PIPE_NAME",
+            envVars);
 
         if (explicitName != null)
         {
@@ -275,11 +283,13 @@ public static class CompatibilityLayer
 
     public static void Start()
     {
+        var envVars = new EnvironmentVariableProvider();
+
         // detect values
         var os = GetOs();
-        var environment = GetEnvironment();
+        var environment = GetEnvironment(envVars);
         var packageVersion = GetPackageVersion();
-        var executablePath = GetExecutablePath(environment, os);
+        var executablePath = GetExecutablePath(environment, os, envVars);
 
         // log detected values
         if (Logger.IsEnabled(LogLevel.Debug))
@@ -307,7 +317,7 @@ public static class CompatibilityLayer
             return;
         }
 
-        if (environment == CloudEnvironment.AzureFunction && IsAzureFlexWithoutDDAzureResourceGroup())
+        if (environment == CloudEnvironment.AzureFunction && IsAzureFlexWithoutDDAzureResourceGroup(envVars))
         {
             Logger.LogError(
                 "Azure function detected on flex consumption plan without DD_AZURE_RESOURCE_GROUP set. Please set the DD_AZURE_RESOURCE_GROUP environment variable to your resource group name in Azure app settings. Shutting down Datadog Serverless Compatibility Layer.");

@@ -74,6 +74,28 @@ public class LoggerTests
         Assert.Matches(@"^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3} \+00:00 \| TestSource \| ERROR\] Error occurred \| System.InvalidOperationException: Test exception\\n(.+)\r?\n$", output);
     }
 
+    [Theory]
+    [InlineData("OFF", (int)LogLevel.None)]
+    [InlineData("NONE", (int)LogLevel.None)]
+    [InlineData("CRITICAL", (int)LogLevel.Critical)]
+    [InlineData("ERROR", (int)LogLevel.Error)]
+    [InlineData("WARN", (int)LogLevel.Warning)]
+    [InlineData("INFO", (int)LogLevel.Information)]
+    [InlineData("INFORMATION", (int)LogLevel.Information)]
+    [InlineData("DEBUG", (int)LogLevel.Debug)]
+    [InlineData("TRACE", (int)LogLevel.Trace)]
+    [InlineData(null, (int)LogLevel.Information)]
+    [InlineData("invalid", (int)LogLevel.Information)]
+    public void GetLogLevelFromEnvironment_ShouldReturnCorrectLevel(string? envValue, int expected)
+    {
+        var envVars = new MockEnvironmentVariableProvider();
+        envVars.Set("DD_LOG_LEVEL", envValue);
+
+        var result = Logger.GetLogLevelFromEnvironment(envVars);
+
+        Assert.Equal((LogLevel)expected, result);
+    }
+
     [Fact]
     public void Log_BelowMinimumLevel_DoesNotWrite()
     {
