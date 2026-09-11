@@ -1,113 +1,456 @@
-name: Publish packages on Nuget
+name: Publish packages on NuGet
+
+run-name: >-
+  .NET ${{ inputs.release-state }} v${{ inputs.package-version }}
+  (core v${{ inputs.core-version }}, operation ${{ inputs.operation-id }})
 
 on:
   workflow_dispatch:
     inputs:
-      publish-github-release:
-        description: "Publish GitHub Release"
+      package-version:
+        description: "Package version (x.y.z)"
         required: true
-        type: boolean
-        default: false
-      publish-nuget:
-        description: "Publish to NuGet"
-        required: true
-        type: boolean
-        default: false
-      package-version-override:
-        description: "Package version override (optional, x.y.z)"
-        required: false
         type: string
-        default: ""
+      core-version:
+        description: "Published Serverless Compatibility Layer version (x.y.z)"
+        required: true
+        type: string
+      operation-id:
+        description: "Release operation ID"
+        required: true
+        type: string
+      release-state:
+        description: "Create the draft or publish its exact packages"
+        required: true
+        type: choice
+        options:
+          - draft
+          - published
+
+concurrency:
+  group: dotnet-release-v${{ inputs.package-version }}
+  cancel-in-progress: false
 
 permissions: {}
 
+env:
+  PACKAGE_ID: Datadog.Serverless.Compat
+
 jobs:
-  downloadbinaries:
+  authorize:
     runs-on: ubuntu-latest
-    outputs:
-      package-version: ${{ steps.package.outputs.package-version }}
-      serverless-compat-version: ${{ steps.serverlesscompatbinary.outputs.serverless-compat-version }}
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - id: package
+      - name: Authorize release request
+        env:
+          EXPECTED_ACTOR: ${{ vars.RELEASE_AUTOMATION_ACTOR }}
+          EVENT_NAME: ${{ github.event_name }}
+          ACTOR: ${{ github.actor }}
+          TRIGGERING_ACTOR: ${{ github.triggering_actor }}
+          PACKAGE_VERSION: ${{ inputs.package-version }}
+          CORE_VERSION: ${{ inputs.core-version }}
+          OPERATION_ID: ${{ inputs.operation-id }}
+          RELEASE_STATE: ${{ inputs.release-state }}
+          RELEASE_REF: ${{ github.ref }}
         run: |
-          if [[ -n "${{ github.event.inputs.package-version-override }}" ]]; then
-            PACKAGE_VERSION="${{ github.event.inputs.package-version-override }}"
-          else
-            if [[ ! "$GITHUB_REF" =~ ^refs/tags/v[0-9]+\.[0-9]+\.[0-9]+(-.+)?$ ]]; then
-              echo "Invalid tag format: $GITHUB_REF, must be in the form vMAJOR.MINOR.PATCH"
-              exit 1
+          set -euo pipefail
+
+          if [[ "$EVENT_NAME" != "workflow_dispatch" ]]; then
+            echo "Release requests must use workflow_dispatch" >&2
+            exit 1
+          fi
+          if [[ -z "$EXPECTED_ACTOR" ]]; then
+            echo "The RELEASE_AUTOMATION_ACTOR repository variable is not configured" >&2
+            exit 1
+          fi
+          if [[ "$ACTOR" != "$EXPECTED_ACTOR" || "$TRIGGERING_ACTOR" != "$EXPECTED_ACTOR" ]]; then
+            echo "Release request actor is not the configured release automation actor" >&2
+            exit 1
+          fi
+          if [[ ! "$PACKAGE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid package version: $PACKAGE_VERSION" >&2
+            exit 1
+          fi
+          if [[ ! "$CORE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Invalid core version: $CORE_VERSION" >&2
+            exit 1
+          fi
+          if [[ -z "$OPERATION_ID" || ${#OPERATION_ID} -gt 200 || "$OPERATION_ID" == *$'\n'* || "$OPERATION_ID" == *$'\r'* ]]; then
+            echo "The operation ID must be a non-empty, single-line value of at most 200 characters" >&2
+            exit 1
+          fi
+          if [[ "$RELEASE_STATE" != "draft" && "$RELEASE_STATE" != "published" ]]; then
+            echo "Invalid release state: $RELEASE_STATE" >&2
+            exit 1
+          fi
+          if [[ "$RELEASE_REF" != "refs/tags/v$PACKAGE_VERSION" ]]; then
+            echo "Release ref must be refs/tags/v$PACKAGE_VERSION, got $RELEASE_REF" >&2
+            exit 1
+          fi
+      - name: Verify the immutable release tag target
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PACKAGE_VERSION: ${{ inputs.package-version }}
+          EXPECTED_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          TAG="v$PACKAGE_VERSION"
+          REF_JSON=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG")
+          OBJECT_TYPE=$(jq -r '.object.type' <<< "$REF_JSON")
+          OBJECT_SHA=$(jq -r '.object.sha' <<< "$REF_JSON")
+
+          for _ in 1 2 3 4 5; do
+            if [[ "$OBJECT_TYPE" != "tag" ]]; then
+              break
             fi
-            PACKAGE_VERSION="${GITHUB_REF#refs/tags/v}"
+            TAG_JSON=$(gh api "repos/$GITHUB_REPOSITORY/git/tags/$OBJECT_SHA")
+            OBJECT_TYPE=$(jq -r '.object.type' <<< "$TAG_JSON")
+            OBJECT_SHA=$(jq -r '.object.sha' <<< "$TAG_JSON")
+          done
+
+          if [[ "$OBJECT_TYPE" != "commit" || "$OBJECT_SHA" != "$EXPECTED_SHA" ]]; then
+            echo "Release tag $TAG does not resolve to workflow commit $EXPECTED_SHA" >&2
+            exit 1
           fi
 
-          echo "package-version=$PACKAGE_VERSION" >> "$GITHUB_OUTPUT"
-      - id: serverlesscompatbinary
+  download-binaries:
+    if: ${{ inputs.release-state == 'draft' }}
+    needs: [authorize]
+    runs-on: ubuntu-latest
+    env:
+      CORE_VERSION: ${{ inputs.core-version }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Download the published core release asset
         run: |
-          RESPONSE=$(curl -s "https://api.github.com/repos/datadog/serverless-components/releases")
-          SERVERLESS_COMPAT_VERSION=$(echo "$RESPONSE" | jq -r --arg pattern "datadog-serverless-compat\/v[0-9]*\.[0-9]*\.[0-9]*" '.[] | select(.tag_name | test($pattern)) | .tag_name' | sort -V | tail -n 1)
+          set -euo pipefail
 
-          echo "Using version ${SERVERLESS_COMPAT_VERSION} of Serverless Compatibility Layer binary"
-          echo "serverless-compat-version=$(echo "$SERVERLESS_COMPAT_VERSION" | jq -rR 'ltrimstr("sls-")')" >> "$GITHUB_OUTPUT"
+          CORE_TAG="datadog-serverless-compat/v$CORE_VERSION"
+          ENCODED_TAG="datadog-serverless-compat%2Fv$CORE_VERSION"
+          RELEASE_JSON=$(curl --fail-with-body --silent --show-error \
+            "https://api.github.com/repos/DataDog/serverless-components/releases/tags/$ENCODED_TAG")
 
-          curl --output-dir ./temp/ --create-dirs -O -s -L "https://github.com/DataDog/serverless-components/releases/download/${SERVERLESS_COMPAT_VERSION}/datadog-serverless-compat.zip"
-          unzip ./temp/datadog-serverless-compat.zip -d ./Datadog.Serverless/datadog
+          if [[ "$(jq -r '.tag_name' <<< "$RELEASE_JSON")" != "$CORE_TAG" ]]; then
+            echo "The core Release tag does not match $CORE_TAG" >&2
+            exit 1
+          fi
+          if [[ "$(jq -r '.draft' <<< "$RELEASE_JSON")" != "false" || "$(jq -r '.prerelease' <<< "$RELEASE_JSON")" != "false" ]]; then
+            echo "Core Release $CORE_TAG is not published" >&2
+            exit 1
+          fi
+
+          ASSET_COUNT=$(jq '[.assets[] | select(.name == "datadog-serverless-compat.zip")] | length' <<< "$RELEASE_JSON")
+          if [[ "$ASSET_COUNT" != "1" ]]; then
+            echo "Core Release $CORE_TAG must contain exactly one datadog-serverless-compat.zip asset" >&2
+            exit 1
+          fi
+
+          ASSET_URL=$(jq -r '.assets[] | select(.name == "datadog-serverless-compat.zip") | .browser_download_url' <<< "$RELEASE_JSON")
+          mkdir -p temp Datadog.Serverless/datadog
+          curl --fail-with-body --location --silent --show-error \
+            --output temp/datadog-serverless-compat.zip "$ASSET_URL"
+          unzip temp/datadog-serverless-compat.zip -d Datadog.Serverless/datadog
       - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         with:
           name: bin
           path: Datadog.Serverless/datadog/bin
+          retention-days: 1
+
   build:
-    needs: [downloadbinaries]
+    if: ${{ inputs.release-state == 'draft' }}
+    needs: [authorize, download-binaries]
     runs-on: ubuntu-latest
     env:
-      PACKAGE_VERSION: ${{ needs.downloadbinaries.outputs.package-version }}
+      PACKAGE_VERSION: ${{ inputs.package-version }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
         with:
-          path: Datadog.Serverless/datadog
-      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 #4.3.1
+          name: bin
+          path: Datadog.Serverless/datadog/bin
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
         with:
           dotnet-version: "9.0.x"
-      - run: cd Datadog.Serverless && dotnet pack -p:Version=${{ env.PACKAGE_VERSION }} -c Release
+      - run: dotnet pack Datadog.Serverless/Datadog.Serverless.Compat.csproj -p:Version="${PACKAGE_VERSION}" -c Release
       - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         with:
           name: build
           path: |
             Datadog.Serverless/bin/Release/Datadog.Serverless.Compat.${{ env.PACKAGE_VERSION }}.nupkg
             Datadog.Serverless/bin/Release/Datadog.Serverless.Compat.${{ env.PACKAGE_VERSION }}.snupkg
-  publish-nuget:
-    if: ${{ github.event.inputs.publish-nuget == 'true' }}
-    needs: [downloadbinaries, build]
+          retention-days: 1
+
+  create-draft-release:
+    if: ${{ inputs.release-state == 'draft' }}
+    needs: [authorize, build]
     runs-on: ubuntu-latest
-    env:
-      PACKAGE_VERSION: ${{ needs.downloadbinaries.outputs.package-version }}
-    steps:
-      - uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
-        with:
-          name: build
-      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 #4.3.1
-        with:
-          dotnet-version: "9.0.x"
-      - run: |
-          dotnet nuget push Datadog.Serverless.Compat.${{ env.PACKAGE_VERSION }}.nupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json
-  create-github-release:
-    if: ${{ github.event.inputs.publish-github-release == 'true' }}
-    runs-on: ubuntu-latest
-    needs: [downloadbinaries, build]
     permissions:
       contents: write
     env:
-      PACKAGE_VERSION: ${{ needs.downloadbinaries.outputs.package-version }}
-      SERVERLESS_COMPAT_VERSION: ${{ needs.downloadbinaries.outputs.serverless-compat-version }}
+      GH_TOKEN: ${{ github.token }}
+      PACKAGE_VERSION: ${{ inputs.package-version }}
+      CORE_VERSION: ${{ inputs.core-version }}
+      OPERATION_ID: ${{ inputs.operation-id }}
     steps:
-      - uses: softprops/action-gh-release@01570a1f39cb168c169c802c3bceb9e93fb10974 # v2.1.0
+      - name: Download the build artifact
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
         with:
-          body: "Install [Datadog.Serverless.Compat](https://www.nuget.org/packages/Datadog.Serverless.Compat/${{ env.PACKAGE_VERSION }}) from NuGet.\n\nUses [${{ env.SERVERLESS_COMPAT_VERSION }}](https://github.com/DataDog/serverless-components/releases/tag/${{ env.SERVERLESS_COMPAT_VERSION }}) of the Serverless Compatibility Layer binary."
-          draft: true
-          tag_name: "v${{ env.PACKAGE_VERSION }}"
-          generate_release_notes: true
-          make_latest: true
-          files: |
-            Datadog.Serverless/bin/Release/Datadog.Serverless.Compat.${{ env.PACKAGE_VERSION }}.nupkg
-            Datadog.Serverless/bin/Release/Datadog.Serverless.Compat.${{ env.PACKAGE_VERSION }}.snupkg
+          name: build
+          path: release-assets
+      - name: Create or reconcile the draft Release
+        run: |
+          set -euo pipefail
+
+          TAG="v$PACKAGE_VERSION"
+          NUPKG="$PACKAGE_ID.$PACKAGE_VERSION.nupkg"
+          SNUPKG="$PACKAGE_ID.$PACKAGE_VERSION.snupkg"
+          EXPECTED_ASSETS=$(printf '%s\n%s\n' "$NUPKG" "$SNUPKG" | sort)
+          LOCAL_ASSETS=$(find release-assets -maxdepth 1 -type f -printf '%f\n' | sort)
+          if [[ "$LOCAL_ASSETS" != "$EXPECTED_ASSETS" ]]; then
+            echo "Build artifact does not contain exactly the expected NuGet packages" >&2
+            printf 'Expected:\n%s\nActual:\n%s\n' "$EXPECTED_ASSETS" "$LOCAL_ASSETS" >&2
+            exit 1
+          fi
+
+          BODY=$(cat <<EOF
+          Install [$PACKAGE_ID](https://www.nuget.org/packages/$PACKAGE_ID/$PACKAGE_VERSION) from NuGet.
+
+          Uses [datadog-serverless-compat/v$CORE_VERSION](https://github.com/DataDog/serverless-components/releases/tag/datadog-serverless-compat/v$CORE_VERSION) of the Serverless Compatibility Layer binary.
+
+          Package version: $PACKAGE_VERSION
+          Core version: $CORE_VERSION
+          Draft operation: $OPERATION_ID
+          EOF
+          )
+
+          RELEASES=$(gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/releases?per_page=100")
+          RELEASE_COUNT=$(jq --arg tag "$TAG" '[.[][] | select(.tag_name == $tag)] | length' <<< "$RELEASES")
+          if [[ "$RELEASE_COUNT" -gt 1 ]]; then
+            echo "More than one Release exists for $TAG" >&2
+            exit 1
+          fi
+
+          if [[ "$RELEASE_COUNT" == "0" ]]; then
+            RELEASE_JSON=$(gh api --method POST "repos/$GITHUB_REPOSITORY/releases" \
+              -f tag_name="$TAG" \
+              -f target_commitish="$GITHUB_SHA" \
+              -f name="$TAG" \
+              --raw-field body="$BODY" \
+              -F draft=true \
+              -F prerelease=false \
+              -F generate_release_notes=true)
+          else
+            RELEASE_JSON=$(jq --arg tag "$TAG" '.[][] | select(.tag_name == $tag)' <<< "$RELEASES")
+            RELEASE_BODY=$(jq -r '.body // ""' <<< "$RELEASE_JSON")
+            if [[ "$(jq -r '.name' <<< "$RELEASE_JSON")" != "$TAG" || \
+                  "$(jq -r '.target_commitish' <<< "$RELEASE_JSON")" != "$GITHUB_SHA" ]]; then
+              echo "Existing Release metadata conflicts with $TAG at $GITHUB_SHA" >&2
+              exit 1
+            fi
+            for MARKER in \
+              "Package version: $PACKAGE_VERSION" \
+              "Core version: $CORE_VERSION" \
+              "Draft operation: $OPERATION_ID"; do
+              if ! grep -Fqx "$MARKER" <<< "$RELEASE_BODY"; then
+                echo "Existing Release body conflicts with the requested draft: missing $MARKER" >&2
+                exit 1
+              fi
+            done
+          fi
+
+          RELEASE_ID=$(jq -r '.id' <<< "$RELEASE_JSON")
+          while IFS= read -r ASSET_NAME; do
+            LOCAL_PATH="release-assets/$ASSET_NAME"
+            ASSET_COUNT=$(jq --arg name "$ASSET_NAME" '[.assets[] | select(.name == $name)] | length' <<< "$RELEASE_JSON")
+            if [[ "$ASSET_COUNT" -gt 1 ]]; then
+              echo "Release contains duplicate $ASSET_NAME assets" >&2
+              exit 1
+            fi
+            if [[ "$ASSET_COUNT" == "1" ]]; then
+              ASSET_ID=$(jq -r --arg name "$ASSET_NAME" '.assets[] | select(.name == $name) | .id' <<< "$RELEASE_JSON")
+              gh api -H "Accept: application/octet-stream" \
+                "repos/$GITHUB_REPOSITORY/releases/assets/$ASSET_ID" > "existing-$ASSET_NAME"
+              if ! cmp --silent "$LOCAL_PATH" "existing-$ASSET_NAME"; then
+                echo "Existing Release asset $ASSET_NAME conflicts with the built package" >&2
+                exit 1
+              fi
+            else
+              gh release upload "$TAG" "$LOCAL_PATH"
+            fi
+          done <<< "$EXPECTED_ASSETS"
+
+          RELEASE_JSON=$(gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID")
+          RELEASE_ASSETS=$(jq -r '.assets[].name' <<< "$RELEASE_JSON" | sort)
+          if [[ "$RELEASE_ASSETS" != "$EXPECTED_ASSETS" ]]; then
+            echo "Release assets conflict with the expected package set" >&2
+            printf 'Expected:\n%s\nActual:\n%s\n' "$EXPECTED_ASSETS" "$RELEASE_ASSETS" >&2
+            exit 1
+          fi
+          if [[ "$(jq -r '.draft' <<< "$RELEASE_JSON")" != "true" ]]; then
+            RELEASE_BODY=$(jq -r '.body // ""' <<< "$RELEASE_JSON")
+            if ! grep -Fq "Publication operation:" <<< "$RELEASE_BODY"; then
+              echo "Existing published Release was not produced by this release flow" >&2
+              exit 1
+            fi
+            echo "Release $TAG is already published with the exact requested assets; leaving it published"
+          fi
+
+  publish-release:
+    if: ${{ inputs.release-state == 'published' }}
+    needs: [authorize]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PACKAGE_VERSION: ${{ inputs.package-version }}
+      CORE_VERSION: ${{ inputs.core-version }}
+      OPERATION_ID: ${{ inputs.operation-id }}
+    steps:
+      - name: Download exact packages from the draft Release
+        run: |
+          set -euo pipefail
+
+          TAG="v$PACKAGE_VERSION"
+          NUPKG="$PACKAGE_ID.$PACKAGE_VERSION.nupkg"
+          SNUPKG="$PACKAGE_ID.$PACKAGE_VERSION.snupkg"
+          EXPECTED_ASSETS=$(printf '%s\n%s\n' "$NUPKG" "$SNUPKG" | sort)
+
+          RELEASES=$(gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/releases?per_page=100")
+          RELEASE_COUNT=$(jq --arg tag "$TAG" '[.[][] | select(.tag_name == $tag)] | length' <<< "$RELEASES")
+          if [[ "$RELEASE_COUNT" != "1" ]]; then
+            echo "Exactly one matching draft or previously published Release is required for $TAG" >&2
+            exit 1
+          fi
+          RELEASE_JSON=$(jq --arg tag "$TAG" '.[][] | select(.tag_name == $tag)' <<< "$RELEASES")
+          RELEASE_BODY=$(jq -r '.body // ""' <<< "$RELEASE_JSON")
+          if [[ "$(jq -r '.name' <<< "$RELEASE_JSON")" != "$TAG" || \
+                "$(jq -r '.target_commitish' <<< "$RELEASE_JSON")" != "$GITHUB_SHA" ]]; then
+            echo "Existing Release metadata conflicts with $TAG at $GITHUB_SHA" >&2
+            exit 1
+          fi
+          for MARKER in \
+            "Package version: $PACKAGE_VERSION" \
+            "Core version: $CORE_VERSION" \
+            "Draft operation:"; do
+            if ! grep -Fq "$MARKER" <<< "$RELEASE_BODY"; then
+              echo "Existing Release body conflicts with the requested publication: missing $MARKER" >&2
+              exit 1
+            fi
+          done
+          if [[ "$(jq -r '.draft' <<< "$RELEASE_JSON")" != "true" ]] && \
+             ! grep -Fq "Publication operation:" <<< "$RELEASE_BODY"; then
+            echo "Existing published Release was not produced by this release flow" >&2
+            exit 1
+          fi
+
+          RELEASE_ASSETS=$(jq -r '.assets[].name' <<< "$RELEASE_JSON" | sort)
+          if [[ "$RELEASE_ASSETS" != "$EXPECTED_ASSETS" ]]; then
+            echo "Release assets conflict with the expected package set" >&2
+            printf 'Expected:\n%s\nActual:\n%s\n' "$EXPECTED_ASSETS" "$RELEASE_ASSETS" >&2
+            exit 1
+          fi
+
+          mkdir release-assets
+          while IFS= read -r ASSET_NAME; do
+            ASSET_ID=$(jq -r --arg name "$ASSET_NAME" '.assets[] | select(.name == $name) | .id' <<< "$RELEASE_JSON")
+            gh api -H "Accept: application/octet-stream" \
+              "repos/$GITHUB_REPOSITORY/releases/assets/$ASSET_ID" > "release-assets/$ASSET_NAME"
+          done <<< "$EXPECTED_ASSETS"
+
+          jq -r '.id' <<< "$RELEASE_JSON" > release-id
+          jq -r '.draft' <<< "$RELEASE_JSON" > release-was-draft
+          printf '%s' "$RELEASE_BODY" > release-body
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+        with:
+          dotnet-version: "9.0.x"
+      - name: Publish the exact Release packages to NuGet
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: |
+          set -euo pipefail
+
+          NUPKG="release-assets/$PACKAGE_ID.$PACKAGE_VERSION.nupkg"
+          LOWER_PACKAGE_ID="${PACKAGE_ID,,}"
+          LOWER_VERSION="${PACKAGE_VERSION,,}"
+          REGISTRY_URL="https://api.nuget.org/v3-flatcontainer/$LOWER_PACKAGE_ID/$LOWER_VERSION/$LOWER_PACKAGE_ID.$LOWER_VERSION.nupkg"
+          HTTP_STATUS=$(curl --location --silent --show-error \
+            --output registry-package.nupkg --write-out '%{http_code}' "$REGISTRY_URL")
+
+          case "$HTTP_STATUS" in
+            200)
+              if ! cmp --silent "$NUPKG" registry-package.nupkg; then
+                # NuGet.org may add its repository signature during ingestion. Compare
+                # every package entry except that service-owned signature before deciding
+                # that the immutable version conflicts with the draft asset.
+                mkdir local-package registry-package
+                unzip -qq "$NUPKG" -d local-package
+                unzip -qq registry-package.nupkg -d registry-package
+                rm -f local-package/.signature.p7s registry-package/.signature.p7s
+                if ! diff --brief --recursive local-package registry-package; then
+                  echo "NuGet already contains a conflicting $PACKAGE_ID $PACKAGE_VERSION package" >&2
+                  exit 1
+                fi
+              fi
+              if [[ "$(cat release-was-draft)" == "true" ]]; then
+                if [[ -z "$NUGET_API_KEY" ]]; then
+                  echo "NUGET_API_KEY is not configured" >&2
+                  exit 1
+                fi
+                # A prior upload may have succeeded before its client received a response.
+                # Re-pushing the verified package with skip-duplicate also reconciles its symbols.
+                dotnet nuget push "$NUPKG" \
+                  --api-key "$NUGET_API_KEY" \
+                  --source https://api.nuget.org/v3/index.json \
+                  --skip-duplicate
+              fi
+              ;;
+            404)
+              if [[ "$(cat release-was-draft)" != "true" ]]; then
+                echo "The GitHub Release is published but its NuGet package is missing" >&2
+                exit 1
+              fi
+              if [[ -z "$NUGET_API_KEY" ]]; then
+                echo "NUGET_API_KEY is not configured" >&2
+                exit 1
+              fi
+              dotnet nuget push "$NUPKG" \
+                --api-key "$NUGET_API_KEY" \
+                --source https://api.nuget.org/v3/index.json
+              ;;
+            *)
+              echo "Unable to determine NuGet state (HTTP $HTTP_STATUS)" >&2
+              exit 1
+              ;;
+          esac
+      - name: Publish or reconcile the GitHub Release
+        run: |
+          set -euo pipefail
+
+          RELEASE_ID=$(cat release-id)
+          if [[ "$(cat release-was-draft)" == "true" ]]; then
+            BODY=$(cat release-body)
+            if grep -Fq "Publication operation:" <<< "$BODY"; then
+              echo "Draft Release already records a publication operation" >&2
+              exit 1
+            fi
+            BODY="$BODY
+
+          Publication operation: $OPERATION_ID"
+            gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" \
+              --raw-field body="$BODY" \
+              -F draft=false \
+              -F prerelease=false \
+              -f make_latest=true > published-release.json
+          else
+            gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" > published-release.json
+          fi
+
+          if [[ "$(jq -r '.draft' published-release.json)" != "false" || \
+                "$(jq -r '.tag_name' published-release.json)" != "v$PACKAGE_VERSION" || \
+                "$(jq -r '.target_commitish' published-release.json)" != "$GITHUB_SHA" ]]; then
+            echo "Published GitHub Release does not match the requested package release" >&2
+            exit 1
+          fi
