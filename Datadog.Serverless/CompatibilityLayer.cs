@@ -361,7 +361,7 @@ public static class CompatibilityLayer
                 CreateNoWindow = true,
             };
 
-            startInfo.EnvironmentVariables["DD_SERVERLESS_COMPAT_VERSION"] = packageVersion;
+            ConfigureVersionMetadata(startInfo, packageVersion);
 
             // Configure named pipes with unique names to avoid conflicts in multi-function scenarios
             ConfigureNamedPipes(startInfo, os);
@@ -373,5 +373,11 @@ public static class CompatibilityLayer
         {
             Logger.LogError(ex, $"Exception when starting {executablePath}");
         }
+    }
+
+    internal static void ConfigureVersionMetadata(ProcessStartInfo startInfo, string packageVersion)
+    {
+        startInfo.EnvironmentVariables["DD_SERVERLESS_COMPAT_VERSION"] = packageVersion;
+        startInfo.EnvironmentVariables["FUNCTIONS_WORKER_RUNTIME_VERSION"] = Environment.Version.ToString();
     }
 }

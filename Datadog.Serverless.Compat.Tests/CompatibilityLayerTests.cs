@@ -79,6 +79,20 @@ public class CompatibilityLayerTests
         Assert.NotEqual("unknown", result);
     }
 
+    [Fact]
+    public void ConfigureVersionMetadata_UsesWrapperVersionEvenForCustomBinary()
+    {
+        var startInfo = new System.Diagnostics.ProcessStartInfo("/custom/compat");
+        startInfo.EnvironmentVariables["DD_SERVERLESS_COMPAT_VERSION"] = "stale";
+        startInfo.EnvironmentVariables["FUNCTIONS_WORKER_RUNTIME_VERSION"] = "stale";
+        startInfo.EnvironmentVariables["DD_SERVICE"] = "keep-me";
+        CompatibilityLayer.ConfigureVersionMetadata(startInfo, "1.12.0");
+        Assert.Equal("1.12.0", startInfo.EnvironmentVariables["DD_SERVERLESS_COMPAT_VERSION"]);
+        Assert.Equal(Environment.Version.ToString(), startInfo.EnvironmentVariables["FUNCTIONS_WORKER_RUNTIME_VERSION"]);
+        Assert.Equal("keep-me", startInfo.EnvironmentVariables["DD_SERVICE"]);
+        Assert.Equal("/custom/compat", startInfo.FileName);
+    }
+
     [Theory]
     [InlineData("FlexConsumption", null, true)]
     [InlineData("FlexConsumption", "test-rg", false)]
