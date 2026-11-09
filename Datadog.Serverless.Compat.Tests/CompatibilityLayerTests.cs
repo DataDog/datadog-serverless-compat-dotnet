@@ -79,16 +79,22 @@ public class CompatibilityLayerTests
         Assert.NotEqual("unknown", result);
     }
 
-    [Fact]
-    public void ConfigureVersionMetadata_UsesWrapperVersionEvenForCustomBinary()
+    [Theory]
+    [InlineData("dotnet", "dotnet")]
+    [InlineData("dotnet-isolated", "dotnet-isolated")]
+    [InlineData(null, "dotnet")]
+    public void ConfigureVersionMetadata_UsesWrapperVersionEvenForCustomBinary(string? workerRuntime, string runtimeName)
     {
         var startInfo = new System.Diagnostics.ProcessStartInfo("/custom/compat");
         startInfo.EnvironmentVariables["DD_SERVERLESS_COMPAT_VERSION"] = "stale";
+        startInfo.EnvironmentVariables["DD_SERVERLESS_COMPAT_RUNTIME"] = "stale";
         startInfo.EnvironmentVariables["FUNCTIONS_WORKER_RUNTIME_VERSION"] = "stale";
+        startInfo.EnvironmentVariables["FUNCTIONS_WORKER_RUNTIME"] = workerRuntime;
         startInfo.EnvironmentVariables["DD_SERVICE"] = "keep-me";
         CompatibilityLayer.ConfigureVersionMetadata(startInfo, "1.12.0");
         Assert.Equal("1.12.0", startInfo.EnvironmentVariables["DD_SERVERLESS_COMPAT_VERSION"]);
-        Assert.Equal(Environment.Version.ToString(), startInfo.EnvironmentVariables["FUNCTIONS_WORKER_RUNTIME_VERSION"]);
+        Assert.Equal(runtimeName + Environment.Version.ToString(), startInfo.EnvironmentVariables["DD_SERVERLESS_COMPAT_RUNTIME"]);
+        Assert.Equal("stale", startInfo.EnvironmentVariables["FUNCTIONS_WORKER_RUNTIME_VERSION"]);
         Assert.Equal("keep-me", startInfo.EnvironmentVariables["DD_SERVICE"]);
         Assert.Equal("/custom/compat", startInfo.FileName);
     }

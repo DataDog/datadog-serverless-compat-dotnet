@@ -378,6 +378,8 @@ public static class CompatibilityLayer
     internal static void ConfigureVersionMetadata(ProcessStartInfo startInfo, string packageVersion)
     {
         startInfo.EnvironmentVariables["DD_SERVERLESS_COMPAT_VERSION"] = packageVersion;
-        startInfo.EnvironmentVariables["FUNCTIONS_WORKER_RUNTIME_VERSION"] = Environment.Version.ToString();
+        var runtimeName =
+            startInfo.EnvironmentVariables["FUNCTIONS_WORKER_RUNTIME"] == "dotnet-isolated" ? "dotnet-isolated" : "dotnet";
+        startInfo.EnvironmentVariables["DD_SERVERLESS_COMPAT_RUNTIME"] = runtimeName + Environment.Version.ToString();
     }
 }
