@@ -5,14 +5,12 @@ namespace Datadog.Serverless.Compat.Tests;
 
 public class CompatibilityLayerTests
 {
-    [Theory]
-    [InlineData("dotnet-isolated")]
-    [InlineData(null)]
-    public void GetEnvironment_ShouldReturnAzureFunction_WhenFunctionsHostIsSet(string? workerRuntime)
+    [Fact]
+    public void GetEnvironment_ShouldReturnAzureFunction_WhenAzureEnvironmentVariablesAreSet()
     {
         var envVars = new MockEnvironmentVariableProvider();
         envVars.Set("FUNCTIONS_EXTENSION_VERSION", "some_version");
-        envVars.Set("FUNCTIONS_WORKER_RUNTIME", workerRuntime);
+        envVars.Set("FUNCTIONS_WORKER_RUNTIME", "some_runtime");
 
         var result = CompatibilityLayer.GetEnvironment(envVars);
 
@@ -25,28 +23,6 @@ public class CompatibilityLayerTests
         var result = CompatibilityLayer.GetEnvironment(new MockEnvironmentVariableProvider());
 
         Assert.Equal(CloudEnvironment.Unknown, result);
-    }
-
-    [Fact]
-    public void GetEnvironment_DetectsFlexWithoutLegacySettings()
-    {
-        var envVars = new MockEnvironmentVariableProvider();
-        envVars.Set("WEBSITE_SKU", "FlexConsumption");
-        envVars.Set("WEBSITE_SITE_NAME", "my-flex-function");
-        Assert.Equal(CloudEnvironment.AzureFunction, CompatibilityLayer.GetEnvironment(envVars));
-        Assert.Equal("dotnet-isolated", CompatibilityLayer.GetRuntimeName(envVars));
-    }
-
-    [Theory]
-    [InlineData("FlexConsumption", null)]
-    [InlineData("ElasticPremium", "my-web-app")]
-    public void GetEnvironment_RejectsIncompleteOrNonFunctionIdentity(string sku, string? siteName)
-    {
-        var envVars = new MockEnvironmentVariableProvider();
-        envVars.Set("WEBSITE_SKU", sku);
-        envVars.Set("WEBSITE_SITE_NAME", siteName);
-
-        Assert.Equal(CloudEnvironment.Unknown, CompatibilityLayer.GetEnvironment(envVars));
     }
 
     [Fact]
@@ -104,23 +80,21 @@ public class CompatibilityLayerTests
     }
 
     [Theory]
-    [InlineData("dotnet", null, "dotnet")]
-    [InlineData("dotnet-isolated", null, "dotnet-isolated")]
-    [InlineData(null, null, null)]
-    [InlineData("unexpected", null, null)]
-    [InlineData("unexpected", "FlexConsumption", null)]
-    public void GetRuntimeName_UsesExplicitWorkerOrReturnsNull(string? workerRuntime, string? sku, string? expected)
+    [InlineData("dotnet", "dotnet")]
+    [InlineData("dotnet-isolated", "dotnet-isolated")]
+    [InlineData(null, null)]
+    [InlineData("unexpected", null)]
+    public void GetRuntimeName_UsesExplicitWorkerOrReturnsNull(string? workerRuntime, string? expected)
     {
         var envVars = new MockEnvironmentVariableProvider();
         envVars.Set("FUNCTIONS_WORKER_RUNTIME", workerRuntime);
-        envVars.Set("WEBSITE_SKU", sku);
 
         Assert.Equal(expected, CompatibilityLayer.GetRuntimeName(envVars));
     }
 
     [Theory]
     [InlineData("dotnet-isolated", "8.0.12", "dotnet-isolated8.0.12")]
-    [InlineData("dotnet", "4.8.1", "dotnet4.8.1")]
+    [InlineData("dotnet", "8.0.12", "dotnet8.0.12")]
     [InlineData(null, "8.0.12", null)]
     [InlineData("dotnet", null, null)]
     public void ConfigureVersionMetadata_ReportsExplicitVersionsOrRemovesStaleHint(
@@ -143,16 +117,6 @@ public class CompatibilityLayerTests
         }
         Assert.Equal("stale", startInfo.EnvironmentVariables["FUNCTIONS_WORKER_RUNTIME_VERSION"]);
         Assert.Equal("platform-owned", startInfo.EnvironmentVariables["FUNCTIONS_WORKER_RUNTIME"]);
-    }
-
-    [Theory]
-    [InlineData(394254, "4.6.1")]
-    [InlineData(528040, "4.8")]
-    [InlineData(533320, "4.8.1")]
-    [InlineData(999999, null)]
-    public void FrameworkVersionFromRelease_ReportsProductVersion(int release, string? expected)
-    {
-        Assert.Equal(expected, CompatibilityLayer.FrameworkVersionFromRelease(release));
     }
 
     [Theory]

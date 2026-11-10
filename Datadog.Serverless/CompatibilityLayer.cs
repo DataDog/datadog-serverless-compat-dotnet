@@ -25,15 +25,8 @@ public static class CompatibilityLayer
 
     internal static CloudEnvironment GetEnvironment(IEnvironmentVariableProvider envVars)
     {
-        // Flex configures the language stack through functionAppConfig rather
-        // than requiring the legacy FUNCTIONS_WORKER_RUNTIME app setting.
-        if (envVars.GetEnvironmentVariable("WEBSITE_SKU") == "FlexConsumption" &&
-            !string.IsNullOrWhiteSpace(envVars.GetEnvironmentVariable("WEBSITE_SITE_NAME")))
-        {
-            return CloudEnvironment.AzureFunction;
-        }
-
-        if (!string.IsNullOrWhiteSpace(envVars.GetEnvironmentVariable("FUNCTIONS_EXTENSION_VERSION")))
+        if (!string.IsNullOrEmpty(envVars.GetEnvironmentVariable("FUNCTIONS_EXTENSION_VERSION")) &&
+            !string.IsNullOrEmpty(envVars.GetEnvironmentVariable("FUNCTIONS_WORKER_RUNTIME")))
         {
             return CloudEnvironment.AzureFunction;
         }
@@ -382,72 +375,16 @@ public static class CompatibilityLayer
         }
     }
 
-    internal static string? GetRuntimeName(IEnvironmentVariableProvider envVars)
-    {
-        var workerRuntime = envVars.GetEnvironmentVariable("FUNCTIONS_WORKER_RUNTIME");
-        if (string.IsNullOrWhiteSpace(workerRuntime))
-        {
-            // Flex supports the isolated .NET worker model only. Do not infer
-            // the worker model on other plans when the setting is missing.
-            return envVars.GetEnvironmentVariable("WEBSITE_SKU") == "FlexConsumption"
-                ? "dotnet-isolated"
-                : null;
-        }
-
-        return workerRuntime switch
+    internal static string? GetRuntimeName(IEnvironmentVariableProvider envVars) =>
+        envVars.GetEnvironmentVariable("FUNCTIONS_WORKER_RUNTIME") switch
         {
             "dotnet" => "dotnet",
             "dotnet-isolated" => "dotnet-isolated",
             _ => null
         };
-    }
 
-    internal static string? GetRuntimeProductVersion()
-    {
-        if (Environment.Version.Major >= 5)
-        {
-            return Environment.Version.ToString();
-        }
-
-#if NETFRAMEWORK
-        if (Environment.OSVersion.Platform != PlatformID.Win32NT)
-        {
-            return null;
-        }
-
-        try
-        {
-            using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(
-                @"SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full");
-            return key?.GetValue("Release") is int release
-                ? FrameworkVersionFromRelease(release)
-                : null;
-        }
-        catch (Exception ex) when (
-            ex is System.Security.SecurityException ||
-            ex is UnauthorizedAccessException ||
-            ex is IOException)
-        {
-            Logger.LogDebug("Unable to identify .NET Framework product version.");
-        }
-#endif
-
-        return null;
-    }
-
-    // Recognized product releases, not CLR or servicing-patch versions.
-    // Unknown values deliberately fall back instead of guessing a release.
-    internal static string? FrameworkVersionFromRelease(int release) => release switch
-    {
-        394254 or 394271 => "4.6.1",
-        394802 or 394806 => "4.6.2",
-        460798 or 460805 => "4.7",
-        461308 or 461310 => "4.7.1",
-        461808 or 461814 => "4.7.2",
-        528040 or 528049 or 528372 or 528449 => "4.8",
-        533320 or 533325 or 533509 => "4.8.1",
-        _ => null
-    };
+    internal static string? GetRuntimeProductVersion() =>
+        Environment.Version.Major >= 5 ? Environment.Version.ToString() : null;
 
     internal static void ConfigureVersionMetadata(
         ProcessStartInfo startInfo,
