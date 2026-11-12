@@ -80,6 +80,46 @@ public class CompatibilityLayerTests
     }
 
     [Theory]
+    [InlineData("dotnet", "dotnet")]
+    [InlineData("dotnet-isolated", "dotnet-isolated")]
+    [InlineData(null, null)]
+    [InlineData("unexpected", null)]
+    public void GetRuntimeName_UsesExplicitWorkerOrReturnsNull(string? workerRuntime, string? expected)
+    {
+        var envVars = new MockEnvironmentVariableProvider();
+        envVars.Set("FUNCTIONS_WORKER_RUNTIME", workerRuntime);
+
+        Assert.Equal(expected, CompatibilityLayer.GetRuntimeName(envVars));
+    }
+
+    [Theory]
+    [InlineData("dotnet-isolated", "8.0.12", "dotnet-isolated8.0.12")]
+    [InlineData("dotnet", "8.0.12", "dotnet8.0.12")]
+    [InlineData(null, "8.0.12", null)]
+    [InlineData("dotnet", null, null)]
+    public void ConfigureVersionMetadata_ReportsExplicitVersionsOrRemovesStaleHint(
+        string? runtimeName, string? runtimeVersion, string? expected)
+    {
+        var startInfo = new System.Diagnostics.ProcessStartInfo("/custom/compat");
+        startInfo.EnvironmentVariables["DD_SERVERLESS_COMPAT_VERSION"] = "stale";
+        startInfo.EnvironmentVariables["DD_SERVERLESS_COMPAT_RUNTIME"] = "stale";
+        startInfo.EnvironmentVariables["FUNCTIONS_WORKER_RUNTIME_VERSION"] = "stale";
+        startInfo.EnvironmentVariables["FUNCTIONS_WORKER_RUNTIME"] = "platform-owned";
+        CompatibilityLayer.ConfigureVersionMetadata(startInfo, "1.12.0", runtimeName, runtimeVersion);
+        Assert.Equal("1.12.0", startInfo.EnvironmentVariables["DD_SERVERLESS_COMPAT_VERSION"]);
+        if (expected is null)
+        {
+            Assert.False(startInfo.EnvironmentVariables.ContainsKey("DD_SERVERLESS_COMPAT_RUNTIME"));
+        }
+        else
+        {
+            Assert.Equal(expected, startInfo.EnvironmentVariables["DD_SERVERLESS_COMPAT_RUNTIME"]);
+        }
+        Assert.Equal("stale", startInfo.EnvironmentVariables["FUNCTIONS_WORKER_RUNTIME_VERSION"]);
+        Assert.Equal("platform-owned", startInfo.EnvironmentVariables["FUNCTIONS_WORKER_RUNTIME"]);
+    }
+
+    [Theory]
     [InlineData("FlexConsumption", null, true)]
     [InlineData("FlexConsumption", "test-rg", false)]
     [InlineData("ElasticPremium", null, false)]

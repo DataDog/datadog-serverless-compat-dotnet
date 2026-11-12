@@ -361,7 +361,7 @@ public static class CompatibilityLayer
                 CreateNoWindow = true,
             };
 
-            startInfo.EnvironmentVariables["DD_SERVERLESS_COMPAT_VERSION"] = packageVersion;
+            ConfigureVersionMetadata(startInfo, packageVersion, GetRuntimeName(envVars), GetRuntimeProductVersion());
 
             // Configure named pipes with unique names to avoid conflicts in multi-function scenarios
             ConfigureNamedPipes(startInfo, os);
@@ -373,5 +373,30 @@ public static class CompatibilityLayer
         {
             Logger.LogError(ex, $"Exception when starting {executablePath}");
         }
+    }
+
+    internal static string? GetRuntimeName(IEnvironmentVariableProvider envVars)
+    {
+        var runtime = envVars.GetEnvironmentVariable("FUNCTIONS_WORKER_RUNTIME");
+        return runtime is "dotnet" or "dotnet-isolated" ? runtime : null;
+    }
+
+    internal static string? GetRuntimeProductVersion() =>
+        Environment.Version.Major >= 5 ? Environment.Version.ToString() : null;
+
+    internal static void ConfigureVersionMetadata(
+        ProcessStartInfo startInfo,
+        string packageVersion,
+        string? runtimeName,
+        string? runtimeVersion)
+    {
+        startInfo.EnvironmentVariables["DD_SERVERLESS_COMPAT_VERSION"] = packageVersion;
+        if (string.IsNullOrWhiteSpace(runtimeName) || string.IsNullOrWhiteSpace(runtimeVersion))
+        {
+            startInfo.EnvironmentVariables.Remove("DD_SERVERLESS_COMPAT_RUNTIME");
+            return;
+        }
+
+        startInfo.EnvironmentVariables["DD_SERVERLESS_COMPAT_RUNTIME"] = runtimeName + runtimeVersion;
     }
 }
