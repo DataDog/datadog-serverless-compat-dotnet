@@ -375,13 +375,11 @@ public static class CompatibilityLayer
         }
     }
 
-    internal static string? GetRuntimeName(IEnvironmentVariableProvider envVars) =>
-        envVars.GetEnvironmentVariable("FUNCTIONS_WORKER_RUNTIME") switch
-        {
-            "dotnet" => "dotnet",
-            "dotnet-isolated" => "dotnet-isolated",
-            _ => null
-        };
+    internal static string? GetRuntimeName(IEnvironmentVariableProvider envVars)
+    {
+        var runtime = envVars.GetEnvironmentVariable("FUNCTIONS_WORKER_RUNTIME");
+        return runtime is "dotnet" or "dotnet-isolated" ? runtime : null;
+    }
 
     internal static string? GetRuntimeProductVersion() =>
         Environment.Version.Major >= 5 ? Environment.Version.ToString() : null;
